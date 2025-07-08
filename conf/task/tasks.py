@@ -95,3 +95,6 @@ class NavigateSeekerConfig(SeekerConfig):
             lin_noise=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         )
     ])
+
+
+# TODO add household task with parameters
