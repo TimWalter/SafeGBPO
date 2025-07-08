@@ -80,7 +80,7 @@ class HouseholdEnv(TorchVectorEnv):
     cost_coefficient_hp: float = 0.1
     selling_price: float = 0.08  # €/kWh 
     start_time: int = 7800  # index of data source that corresponds to our desired start time (7800=November 21st)
-
+    n_forecasts: int = 4  # how many time steps to look into the future
 
 
     # Dim==state_shape[1] is required for the linearisation, such that the requirements
@@ -97,19 +97,7 @@ class HouseholdEnv(TorchVectorEnv):
                  render_mode: Optional[str] = None,
                  max_episode_steps: int = 24,  # always train over one day
                  ):
-        high = np.array([10.0, 24.0, 100], dtype=np.float64)
-        low = np.array([0.0, 18.0, 10], dtype=np.float64)
-        action_space = spaces.Box(-1.0, 1.0, shape=(2,), dtype=np.float64)
-        observation_space = spaces.Box(low, high, dtype=np.float64)
-        super().__init__(device, num_envs, observation_space, action_space,
-                         [
-                             [low[0], high[0]], # State bounds here are the same as observation bounds
-                             [low[1], high[1]],
-                             [low[2], high[2]]
-                         ],
-                         stochastic, render_mode)
-
-        self.max_episode_steps = max_episode_steps
+        # load data sources
         path = os.path.join(os.path.dirname(__file__), "..", "..", "assets")
         self.load_data = pd.read_csv(path + "/ICLR_load.csv", index_col=0)
         self.pv_data = pd.read_csv(path + "/ICLR_pv.csv", index_col=0)
@@ -120,11 +108,46 @@ class HouseholdEnv(TorchVectorEnv):
         self.buying_price.insert(0, "t", self.pv_data.index)
         self.buying_price.set_index(["t"])
 
+        eps = 0.1
+        high_load = np.tile(self.load_data["p"].max() + eps, self.n_forecasts)
+        low_load = np.tile(self.load_data["p"].min() - eps, self.n_forecasts)
+        high_pv = np.tile(self.pv_data["p"].max() + eps, self.n_forecasts)
+        low_pv = np.tile(self.pv_data["p"].min() - eps, self.n_forecasts)
+        high_out_temp = np.tile(self.heatpump_data["outside_temp"].max() + eps, self.n_forecasts)
+        low_out_temp = np.tile(self.heatpump_data["outside_temp"].min() - eps, self.n_forecasts)
+        high_cop = np.tile(self.heatpump_data["COP"].max() + eps, self.n_forecasts)
+        low_cop = np.tile(self.heatpump_data["COP"].min() - eps, self.n_forecasts)
+        high_price = np.tile(self.buying_price["price"].max() + eps, self.n_forecasts)
+        low_price = np.tile(self.buying_price["price"].min() - eps, self.n_forecasts)
+        high_state = np.array([10.0, 24.0, 100], dtype=np.float64)
+        low_state = np.array([0.0, 18.0, 10], dtype=np.float64)
+        
+        high = np.concatenate([high_state, high_load, high_pv, high_out_temp, high_cop, high_price])
+        low = np.concatenate([low_state, low_load, low_pv, low_out_temp, low_cop, low_price])
+        action_space = spaces.Box(-1.0, 1.0, shape=(2,), dtype=np.float64)
+        observation_space = spaces.Box(low, high, dtype=np.float64)
+
+        super().__init__(device, num_envs, observation_space, action_space,
+                         [
+                             [low[0], high[0]], # bounds for state of charge, indoor temp, return temp
+                             [low[1], high[1]],
+                             [low[2], high[2]]
+                         ],
+                         stochastic, render_mode)
+
+        self.max_episode_steps = max_episode_steps
+
     @jaxtyped(typechecker=beartype)
     @property
     def observation(self) -> Float[
         Tensor, "{self.num_envs} {self.observation_space.shape[1]}"]:
-        return self.state
+        load_forecast = self.get_data(self.load_data, self.n_forecasts, 'p').tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
+        pv_forecast = self.get_data(self.pv_data, self.n_forecasts, 'p').tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
+        out_temp_forecast = self.get_data(self.heatpump_data, self.n_forecasts, 'outside_temp').tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
+        cop_forecast = self.get_data(self.heatpump_data, self.n_forecasts, "COP").tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
+        price_forecast = self.get_data(self.buying_price, self.n_forecasts, "price").tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
+        
+        return torch.cat([self.state, load_forecast, pv_forecast, out_temp_forecast, cop_forecast, price_forecast], dim=1)
 
     @jaxtyped(typechecker=beartype)
     def dynamics(self,
@@ -205,68 +228,68 @@ class HouseholdEnv(TorchVectorEnv):
         truncated = self.steps >= self.max_episode_steps
         return terminated, truncated
 
-    # @jaxtyped(typechecker=beartype)
-    # def linear_dynamics(self,
-    #                     lin_state: Float[Tensor, "{self.state.shape[1]}"],
-    #                     lin_action: Float[Tensor, "{self.action_space.shape[1]}"],
-    #                     lin_noise: Float[Tensor, "{self.noise.center.shape[1]}"]
-    #                     ) -> tuple[
-    #     Float[Tensor, "{self.state.shape[1]}"],
-    #     Float[Tensor, "{self.state.shape[1]} {self.state.shape[1]}"],
-    #     Float[Tensor, "{self.state.shape[1]} {self.action_space.shape[1]}"],
-    #     Float[Tensor, "{self.state.shape[1]} {self.noise.center.shape[1]}"]
-    # ]:
-    #     """
-    #     Compute the linearised dynamics around the given state, action and noise by
-    #     computing a first order taylor series of the update.
+    @jaxtyped(typechecker=beartype)
+    def linear_dynamics(self,
+                        lin_state: Float[Tensor, "{self.state.shape[1]}"],
+                        lin_action: Float[Tensor, "{self.action_space.shape[1]}"],
+                        lin_noise: Float[Tensor, "{self.noise.center.shape[1]}"]
+                        ) -> tuple[
+        Float[Tensor, "{self.state.shape[1]}"],
+        Float[Tensor, "{self.state.shape[1]} {self.state.shape[1]}"],
+        Float[Tensor, "{self.state.shape[1]} {self.action_space.shape[1]}"],
+        Float[Tensor, "{self.state.shape[1]} {self.noise.center.shape[1]}"]
+    ]:
+        """
+        Compute the linearised dynamics around the given state, action and noise by
+        computing a first order taylor series of the update.
 
-    #     Args:
-    #         lin_state: Linearisation point for the state.
-    #         lin_action: Linearisation point for the action.
-    #         lin_noise: Linearisation point for the noise.
+        Args:
+            lin_state: Linearisation point for the state.
+            lin_action: Linearisation point for the action.
+            lin_noise: Linearisation point for the noise.
 
-    #     Returns:
-    #         constant_matrix: The constant matrix in the linear dynamics.
-    #         state_matrix: The state matrix in the linear dynamics.
-    #         action_matrix: The action matrix in the linear dynamics.
-    #         noise_matrix: The noise matrix in the linear dynamics.
-    #     """
+        Returns:
+            constant_matrix: The constant matrix in the linear dynamics.
+            state_matrix: The state matrix in the linear dynamics.
+            action_matrix: The action matrix in the linear dynamics.
+            noise_matrix: The noise matrix in the linear dynamics.
+        """
 
-    #     constant_mat = torch.tensor([
-    #         lin_state[0] + self.dt * (lin_state[1] + self.dt * theta_ddot),
-    #         lin_state[1] + self.dt * theta_ddot
-    #     ], dtype=torch.float64, device=self.device)
+        constant_mat = torch.tensor([
+            lin_state[0] + self.dt * (lin_state[1] + self.dt * theta_ddot),
+            lin_state[1] + self.dt * theta_ddot
+        ], dtype=torch.float64, device=self.device)
 
-    #     state_mat = torch.eye(2, dtype=torch.float64, device=self.device)
+        state_mat = torch.eye(2, dtype=torch.float64, device=self.device)
 
-    #     action_mat = torch.zeros((2, 1), dtype=torch.float64, device=self.device)
+        action_mat = torch.zeros((2, 1), dtype=torch.float64, device=self.device)
 
-    #     noise_mat = torch.zeros((self.state.shape[1], self.noise.center.shape[1]),
-    #                             dtype=torch.float64, device=self.device)
+        noise_mat = torch.zeros((self.state.shape[1], self.noise.center.shape[1]),
+                                dtype=torch.float64, device=self.device)
 
-    #     return constant_mat, state_mat, action_mat, noise_mat
+        return constant_mat, state_mat, action_mat, noise_mat
 
-    # @jaxtyped(typechecker=beartype)
-    # def reachable_set(self) -> sets.Zonotope:
-    #     """
-    #     Compute the one step reachable set.
+    @jaxtyped(typechecker=beartype)
+    def reachable_set(self) -> sets.Zonotope:
+        """
+        Compute the one step reachable set.
 
-    #     Returns:
-    #         The one step reachable set.
-    #     """
-    #     ## @Hannah same as action_mat in the linear dynamics just already vectorised
-    #     center = self.dynamics(self.action_set.center)
+        Returns:
+            The one step reachable set.
+        """
+        ## @Hannah same as action_mat in the linear dynamics just already vectorised
+        center = self.dynamics(self.action_set.center)
 
-    #     d_driving_force_d_action = 3.0 / self.mass / self.length ** 2 * self.torque_mag
-    #     d_theta_ddot_d_action = d_driving_force_d_action
+        d_driving_force_d_action = 3.0 / self.mass / self.length ** 2 * self.torque_mag
+        d_theta_ddot_d_action = d_driving_force_d_action
 
-    #     action_mat = torch.zeros((*self.state.shape, self.action_space.shape[1]),
-    #                              dtype=torch.float64, device=self.device)
-    #     action_mat[:, 1, 0] += self.dt * d_theta_ddot_d_action
-    #     action_mat[:, 0, 0] += self.dt ** 2 * d_theta_ddot_d_action
+        action_mat = torch.zeros((*self.state.shape, self.action_space.shape[1]),
+                                 dtype=torch.float64, device=self.device)
+        action_mat[:, 1, 0] += self.dt * d_theta_ddot_d_action
+        action_mat[:, 0, 0] += self.dt ** 2 * d_theta_ddot_d_action
 
-    #     generator = torch.bmm(action_mat, self.action_set.generator)
-    #     return sets.Zonotope(center, torch.cat([generator], dim=2))
+        generator = torch.bmm(action_mat, self.action_set.generator)
+        return sets.Zonotope(center, torch.cat([generator], dim=2))
 
     def draw(self):
         # Feel free to not have visualisation
