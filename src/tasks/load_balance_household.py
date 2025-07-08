@@ -98,13 +98,11 @@ class LoadBalanceHouseholdTask(HouseholdEnv, SafeStateTask):
         p_pv = self.get_data(self.pv_data, 1, 'p')
         buying_price = self.get_data(self.buying_price, 1, 'price')
         p_total = p_ess + p_hp + p_load + p_pv
-        buying = p_total >= 0
-        electricity_cost = torch.zeros_like(p_total)
-        for env in range(self.num_envs):
-            if buying[env]:
-                electricity_cost[env] = p_total[env] * self.dt * buying_price
-            else:
-                electricity_cost[env] = p_total[env] * self.dt * self.selling_price
+        electricity_cost = torch.where(
+            p_total >= 0,
+            p_total * self.dt * buying_price,
+            p_total * self.dt * self.selling_price
+        )
         comfort_cost = (t_in - self.t_in_setpoint)**2 * self.cost_coefficient_hp
         return -(electricity_cost.flatten() + comfort_cost.flatten())
 
