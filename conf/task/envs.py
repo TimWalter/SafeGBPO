@@ -70,3 +70,4 @@ class SeekerConfig(TorchVectorConfig):
         ),
     ])
 
+# TODO Add household env with parameters

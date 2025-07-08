@@ -158,7 +158,7 @@ def load_env_and_projection(cfg, env, proj, tanh, passthrough):
             proj_config.passthrough = True
         cfg.env.wrappers = OmegaConf.structured([proj_config])
 
-
+# TODO if we need an experiment queue, we have to add the env and task here to automatically create the configs
 state_dims = {
     "Pendulum": 2,
     "CartPole": 4,
