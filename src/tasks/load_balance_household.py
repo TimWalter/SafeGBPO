@@ -2,6 +2,7 @@ import os
 from typing import Literal, Optional, Any
 
 import torch
+import numpy as np
 from beartype import beartype
 from jaxtyping import jaxtyped, Float
 from torch import Tensor
@@ -52,8 +53,7 @@ class LoadBalanceHouseholdTask(HouseholdEnv, SafeStateTask):
                  max_episode_steps: int = 240,
                  render_mode: Optional[str] = None
                  ):
-        path = os.path.join(os.path.dirname(__file__), "..", "assets", "pendulum_")
-        RCITask.__init__(self, device, num_envs, rci_size, path)
+        SafeStateTask.__init__(self, device, num_state_gens=3)
         HouseholdEnv.__init__(self, device, num_envs, stochastic, render_mode, max_episode_steps)
 
     @jaxtyped(typechecker=beartype)
@@ -69,7 +69,8 @@ class LoadBalanceHouseholdTask(HouseholdEnv, SafeStateTask):
         if seed is not None:
             rng_state = torch.get_rng_state()
             torch.manual_seed(seed)
-        self.state= self.rci.sample()
+        state = np.tile(np.array([self.soc_init, self.t_in_init, self.t_ret_init]), self.num_envs).reshape(self.num_envs, -1)
+        self.state= torch.tensor(state, dtype=torch.float64, device=self.device)
 
         self.steps = torch.zeros_like(self.steps)
 
@@ -84,10 +85,36 @@ class LoadBalanceHouseholdTask(HouseholdEnv, SafeStateTask):
         return self.observation, {}
 
     @jaxtyped(typechecker=beartype)
+    def safe_state_set(self):
+        pass
+    
+    @jaxtyped(typechecker=beartype)
     def reward(self,
                action: Float[Tensor, "{self.num_envs} {self.action_space.shape[1]}"]) \
             -> Float[Tensor, "{self.num_envs}"]:
-        theta, theta_dot = self.state.split(1, dim=1)
-        return (-self.angle_penalty * theta ** 2
-                - self.velocity_penalty * theta_dot ** 2
-                - self.action_penalty * action ** 2).squeeze(dim=1)
+        soc, t_in, t_ret = self.state.split(1, dim=1)
+        p_ess, p_hp = action.split(1, dim=1)
+        p_load = self.get_data(self.load_data, 1, "p")
+        p_pv = self.get_data(self.pv_data, 1, 'p')
+        buying_price = self.get_data(self.buying_price, 1, 'price')
+        p_total = p_ess + p_hp + p_load + p_pv
+        buying = p_total >= 0
+        electricity_cost = torch.zeros_like(p_total)
+        for env in range(self.num_envs):
+            if buying[env]:
+                electricity_cost[env] = p_total[env] * self.dt * buying_price
+            else:
+                electricity_cost[env] = p_total[env] * self.dt * self.selling_price
+        comfort_cost = (t_in - self.t_in_setpoint)**2 * self.cost_coefficient_hp
+        return -(electricity_cost.flatten() + comfort_cost.flatten())
+
+
+
+if __name__=="__main__": 
+    env = LoadBalanceHouseholdTask(num_envs=2)
+    env.reset()
+    action = torch.zeros(2, 2)
+    new_state = env.dynamics(action)
+    reward = env.reward(action)
+    print(new_state)
+    print(reward)
