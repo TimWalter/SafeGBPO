@@ -1,5 +1,5 @@
 import os
-from typing import Optional, Literal
+from typing import Optional, Literal, Any
 
 import numpy as np
 import pandas as pd
@@ -151,29 +151,72 @@ class HouseholdEnv(TorchVectorEnv):
         return torch.cat([self.state, load_forecast, pv_forecast, out_temp_forecast, cop_forecast, price_forecast], dim=1)
 
     @jaxtyped(typechecker=beartype)
+    def reset(
+            self,
+            *,
+            seed: Optional[int] = None,
+            options: Optional[dict] = None,
+    ) -> tuple[
+        Float[Tensor, "{self.num_envs} {self.observation_space.shape[1]}"],
+        dict[str, Any]
+    ]:
+        if seed is not None:
+            rng_state = torch.get_rng_state()
+            torch.manual_seed(seed)
+        state = np.tile(np.array([self.soc_init, self.t_in_init, self.t_ret_init]),
+                        self.num_envs).reshape(self.num_envs, -1)
+        self.state = torch.tensor(state, dtype=torch.float64, device=self.device)
+
+        self.steps = torch.zeros_like(self.steps)
+
+        self.scheduled_reset = torch.zeros_like(self.scheduled_reset)
+
+        if self.render_mode == "human":
+            self.render()
+
+        if seed is not None:
+            torch.set_rng_state(rng_state)
+
+        return self.observation, {}
+
+    @jaxtyped(typechecker=beartype)
     def dynamics(self,
                  action: Float[Tensor, "{self.num_envs} {self.action_space.shape[1]}"]) \
             -> Float[Tensor, "{self.num_envs} {self.state.shape[1]}"]:
         """
         Do not alter the state yet only return the next state given the action"""
-        rescaled_action = self.rescale_actions(action)
-        p_ess, p_hp = rescaled_action.split(1, dim=1)
+        p_ess, p_hp = action.split(1, dim=1)
+        ess_w = 0.5 * (self.p_ess_max - self.p_ess_min)
+        ess_b = 0.5 * (self.p_ess_max - self.p_ess_min) + self.p_ess_min
+        hp_w = 0.5 * (self.p_hp_max - self.p_hp_min)
+        hp_b = 0.5 * (self.p_hp_max - self.p_hp_min) + self.p_hp_min
+        p_ess = p_ess * ess_w + ess_b
+        p_hp = p_hp * hp_w + hp_b
+
         soc, t_in, t_ret = self.state.split(1, dim=1)
+
         current_step = self.steps.detach().cpu().numpy()[0]
         t_out = self.get_data(self.heatpump_data, current_step, 1, "outside_temp")
         cop = self.get_data(self.heatpump_data, current_step, 1, "COP")
-        new_soc = soc + p_ess * self.dt
+
+        c_0 = (self.h_fh + self.h_out)/(self.h_out * self.tau)
+        c_1 = self.h_fh/(self.h_out * self.tau)
+        c_2 = self.h_fh/self.c_w_fh
+        c_3 = t_out/self.tau
+        c_4 = cop/self.c_w_fh
+
+        soc = soc + p_ess * self.dt
         new_t_in = t_in + self.dt * (
-            -(self.h_fh + self.h_out)/(self.h_out * self.tau) * t_in 
-            + self.h_fh/(self.h_out * self.tau) * t_ret 
-            + t_out/self.tau
+            -c_0 * t_in
+            + c_1 * t_ret
+            + c_3
             )
         new_t_ret = t_ret + self.dt * (
-            self.h_fh/self.c_w_fh * t_in 
-            - self.h_fh/self.c_w_fh * t_ret
-            + p_hp * cop/self.c_w_fh
+            c_2 * t_in
+            - c_2 * t_ret
+            + c_4 * p_hp
         )
-        return torch.cat([new_soc, new_t_in, new_t_ret], dim=1)
+        return torch.cat([soc, new_t_in, new_t_ret], dim=1)
     
     @jaxtyped(typechecker=beartype)
     def rescale_actions(self, action: Float[Tensor, "{self.num_envs} {self.action_space.shape[1]}"]) \
@@ -256,29 +299,40 @@ class HouseholdEnv(TorchVectorEnv):
             action_matrix: The action matrix in the linear dynamics.
             noise_matrix: The noise matrix in the linear dynamics.
         """
-        # define constants
-        c_a = 1 - (self.h_fh + self.h_out) * self.dt/(self.h_out * self.tau)
-        c_b = self.h_fh * self.dt / (self.h_out * self.tau)
-        c_c = self.h_fh / self.c_w_fh * self.dt
+        ess_w = 0.5 * (self.p_ess_max - self.p_ess_min)
+        ess_b = 0.5 * (self.p_ess_max - self.p_ess_min) + self.p_ess_min
+        hp_w = 0.5 * (self.p_hp_max - self.p_hp_min)
+        hp_b = 0.5 * (self.p_hp_max - self.p_hp_min) + self.p_hp_min
+        p_ess = lin_action[0] * ess_w + ess_b
+        p_hp = lin_action[1] * hp_w + hp_b
+
         # observe
         current_step = self.steps.detach().cpu().numpy()[0]
         t_out = self.get_data(self.heatpump_data, current_step, 1, "outside_temp")
         cop = self.get_data(self.heatpump_data, current_step, 1, "COP")
 
+        # define constants
+        c_0 = (self.h_fh + self.h_out) / (self.h_out * self.tau)
+        c_1 = self.h_fh / (self.h_out * self.tau)
+        c_2 = self.h_fh / self.c_w_fh
+        c_3 = t_out / self.tau
+        c_4 = cop / self.c_w_fh
 
         constant_mat = torch.tensor([
-            0,
-            t_out * self.dt / self.tau,
-            0
+            lin_state[0] + self.dt * p_ess,
+            lin_state[1] + self.dt * (-c_0*lin_state[1] + c_1*lin_state[2] + c_3),
+            lin_state[2] + self.dt * (c_2*lin_state[1] - c_2*lin_state[2] + c_4*p_hp)
         ], dtype=torch.float64, device=self.device)
 
-        state_mat = torch.diag(torch.tensor([1, c_a, (1 - c_c)], dtype=torch.float64, device=self.device))
-        state_mat[1][2] = c_b
-        state_mat[2][1] = c_c
+        state_mat = torch.eye(3, dtype=torch.float64, device=self.device)
+        state_mat[1, 1] += self.dt * (-c_0)
+        state_mat[2, 1] += self.dt * c_2
+        state_mat[1, 2] += self.dt * c_1
+        state_mat[2, 2] += self.dt * (-c_2)
 
         action_mat = torch.zeros((3, 2), dtype=torch.float64, device=self.device)
-        action_mat[0][0] = self.dt
-        action_mat[2][1] = cop * self.dt / self.c_w_fh
+        action_mat[0, 0] += self.dt * ess_w
+        action_mat[2, 1] += self.dt * c_4[0] * hp_w
 
         noise_mat = torch.zeros((self.state.shape[1], self.noise.center.shape[1]),
                                 dtype=torch.float64, device=self.device)
@@ -293,16 +347,20 @@ class HouseholdEnv(TorchVectorEnv):
         Returns:
             The one step reachable set.
         """
-        # @Tim not sure if this is correctly vectorized with the batch dimensions
-        # observe
+        center = self.dynamics(self.action_set.center)
+
+        action_mat = torch.zeros((*self.state.shape, self.action_space.shape[1]),
+                                 dtype=torch.float64, device=self.device)
+
         current_step = self.steps.detach().cpu().numpy()[0]
         cop = self.get_data(self.heatpump_data, current_step, 1, "COP")
 
-        center = self.dynamics(self.action_set.center)
-        action_mat = torch.zeros((*self.state.shape, self.action_space.shape[1]),
-                                 dtype=torch.float64, device=self.device)
-        action_mat[:, 0, 0] = self.dt
-        action_mat[:, 2, 1] = cop * self.dt / self.c_w_fh
+        ess_w = 0.5 * (self.p_ess_max - self.p_ess_min)
+        hp_w = 0.5 * (self.p_hp_max - self.p_hp_min)
+        c_4 = cop / self.c_w_fh
+
+        action_mat[:, 0, 0] += self.dt * ess_w
+        action_mat[:, 2, 1] += self.dt * c_4[0] * hp_w
         generator = torch.bmm(action_mat, self.action_set.generator)
         return sets.Zonotope(center, torch.cat([generator], dim=2))
 
