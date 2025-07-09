@@ -145,7 +145,7 @@ class HouseholdEnv(TorchVectorEnv):
         load_forecast = self.get_data(self.load_data, current_step, self.n_forecasts, 'p').tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
         pv_forecast = self.get_data(self.pv_data, current_step, self.n_forecasts, 'p').tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
         out_temp_forecast = self.get_data(self.heatpump_data, current_step, self.n_forecasts, 'outside_temp').tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
-        cop_forecast = 3.01#self.get_data(self.heatpump_data, current_step, self.n_forecasts, "COP").tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
+        cop_forecast = self.get_data(self.heatpump_data, current_step, self.n_forecasts, "COP").tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts)) * 0.0 + 3.01
         price_forecast = self.get_data(self.buying_price, current_step, self.n_forecasts, "price").tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
         
         return torch.cat([self.state, load_forecast, pv_forecast, out_temp_forecast, cop_forecast, price_forecast], dim=1)
@@ -354,14 +354,14 @@ class HouseholdEnv(TorchVectorEnv):
                                  dtype=torch.float64, device=self.device)
 
         current_step = self.steps.detach().cpu().numpy()[0]
-        cop = self.get_data(self.heatpump_data, current_step, 1, "COP")
+        cop = 3.01# self.get_data(self.heatpump_data, current_step, 1, "COP")
 
         ess_w = 0.5 * (self.p_ess_max - self.p_ess_min)
         hp_w = 0.5 * (self.p_hp_max - self.p_hp_min)
         c_4 = cop / self.c_w_fh
 
         action_mat[:, 0, 0] += self.dt * ess_w
-        action_mat[:, 2, 1] += self.dt * c_4[0] * hp_w
+        action_mat[:, 2, 1] += self.dt * c_4 * hp_w
         generator = torch.bmm(action_mat, self.action_set.generator)
         return sets.Zonotope(center, torch.cat([generator], dim=2))
 

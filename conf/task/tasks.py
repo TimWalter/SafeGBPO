@@ -99,7 +99,7 @@ class NavigateSeekerConfig(SeekerConfig):
 @dataclass
 class LoadBalanceHouseholdConfig(HouseholdConfig):
     name: str = "LoadBalanceHouseholdTask"
-    max_episode_steps: int = 1000
+    max_episode_steps: int = 24
     num_envs: int = 8
     wrappers: list = field(default_factory=lambda: [
         BoundaryProjectionConfig(
