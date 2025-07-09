@@ -141,11 +141,12 @@ class HouseholdEnv(TorchVectorEnv):
     @property
     def observation(self) -> Float[
         Tensor, "{self.num_envs} {self.observation_space.shape[1]}"]:
-        load_forecast = self.get_data(self.load_data, self.n_forecasts, 'p').tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
-        pv_forecast = self.get_data(self.pv_data, self.n_forecasts, 'p').tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
-        out_temp_forecast = self.get_data(self.heatpump_data, self.n_forecasts, 'outside_temp').tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
-        cop_forecast = self.get_data(self.heatpump_data, self.n_forecasts, "COP").tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
-        price_forecast = self.get_data(self.buying_price, self.n_forecasts, "price").tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
+        current_step = self.steps.detach().cpu().numpy()[0]
+        load_forecast = self.get_data(self.load_data, current_step, self.n_forecasts, 'p').tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
+        pv_forecast = self.get_data(self.pv_data, current_step, self.n_forecasts, 'p').tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
+        out_temp_forecast = self.get_data(self.heatpump_data, current_step, self.n_forecasts, 'outside_temp').tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
+        cop_forecast = self.get_data(self.heatpump_data, current_step, self.n_forecasts, "COP").tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
+        price_forecast = self.get_data(self.buying_price, current_step, self.n_forecasts, "price").tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
         
         return torch.cat([self.state, load_forecast, pv_forecast, out_temp_forecast, cop_forecast, price_forecast], dim=1)
 
@@ -158,8 +159,9 @@ class HouseholdEnv(TorchVectorEnv):
         rescaled_action = self.rescale_actions(action)
         p_ess, p_hp = rescaled_action.split(1, dim=1)
         soc, t_in, t_ret = self.state.split(1, dim=1)
-        t_out = self.get_data(self.heatpump_data, 1, "outside_temp")
-        cop = self.get_data(self.heatpump_data, 1, "COP")
+        current_step = self.steps.detach().cpu().numpy()[0]
+        t_out = self.get_data(self.heatpump_data, current_step, 1, "outside_temp")
+        cop = self.get_data(self.heatpump_data, current_step, 1, "COP")
         new_soc = soc + p_ess * self.dt
         new_t_in = t_in + self.dt * (
             -(self.h_fh + self.h_out)/(self.h_out * self.tau) * t_in 
@@ -195,10 +197,10 @@ class HouseholdEnv(TorchVectorEnv):
     def get_data(
         self,
         data_source: pd.DataFrame,
+        current_step: np.int32,
         n_timesteps: int,
         key: str
     ) -> Float[Tensor, "{n_timesteps}"]:
-        current_step = self.steps.detach().cpu().numpy()[0]
         start = self.start_time + current_step
         end = self.start_time + current_step + n_timesteps
         data = data_source[key][start:end].to_numpy()
@@ -254,15 +256,29 @@ class HouseholdEnv(TorchVectorEnv):
             action_matrix: The action matrix in the linear dynamics.
             noise_matrix: The noise matrix in the linear dynamics.
         """
+        # define constants
+        c_a = 1 - (self.h_fh + self.h_out) * self.dt/(self.h_out * self.tau)
+        c_b = self.h_fh * self.dt / (self.h_out * self.tau)
+        c_c = self.h_fh / self.c_w_fh * self.dt
+        # observe
+        current_step = self.steps.detach().cpu().numpy()[0]
+        t_out = self.get_data(self.heatpump_data, current_step, 1, "outside_temp")
+        cop = self.get_data(self.heatpump_data, current_step, 1, "COP")
+
 
         constant_mat = torch.tensor([
-            lin_state[0] + self.dt * (lin_state[1] + self.dt * theta_ddot),
-            lin_state[1] + self.dt * theta_ddot
+            0,
+            t_out * self.dt / self.tau,
+            0
         ], dtype=torch.float64, device=self.device)
 
-        state_mat = torch.eye(2, dtype=torch.float64, device=self.device)
+        state_mat = torch.diag(torch.tensor([1, c_a, (1 - c_c)], dtype=torch.float64, device=self.device))
+        state_mat[1][2] = c_b
+        state_mat[2][1] = c_c
 
-        action_mat = torch.zeros((2, 1), dtype=torch.float64, device=self.device)
+        action_mat = torch.zeros((3, 2), dtype=torch.float64, device=self.device)
+        action_mat[0][0] = self.dt
+        action_mat[2][1] = cop * self.dt / self.c_w_fh
 
         noise_mat = torch.zeros((self.state.shape[1], self.noise.center.shape[1]),
                                 dtype=torch.float64, device=self.device)
@@ -277,17 +293,16 @@ class HouseholdEnv(TorchVectorEnv):
         Returns:
             The one step reachable set.
         """
-        ## @Hannah same as action_mat in the linear dynamics just already vectorised
+        # @Tim not sure if this is correctly vectorized with the batch dimensions
+        # observe
+        current_step = self.steps.detach().cpu().numpy()[0]
+        cop = self.get_data(self.heatpump_data, current_step, 1, "COP")
+
         center = self.dynamics(self.action_set.center)
-
-        d_driving_force_d_action = 3.0 / self.mass / self.length ** 2 * self.torque_mag
-        d_theta_ddot_d_action = d_driving_force_d_action
-
         action_mat = torch.zeros((*self.state.shape, self.action_space.shape[1]),
                                  dtype=torch.float64, device=self.device)
-        action_mat[:, 1, 0] += self.dt * d_theta_ddot_d_action
-        action_mat[:, 0, 0] += self.dt ** 2 * d_theta_ddot_d_action
-
+        action_mat[:, 0, 0] = self.dt
+        action_mat[:, 2, 1] = cop * self.dt / self.c_w_fh
         generator = torch.bmm(action_mat, self.action_set.generator)
         return sets.Zonotope(center, torch.cat([generator], dim=2))
 

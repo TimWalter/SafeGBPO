@@ -60,7 +60,7 @@ class BoundaryProjectionWrapper(SafetyWrapper):
         safe_actions = actions.clone()
         if projectable.any():
             safe_actions[projectable] = self.safety_layer(actions[projectable],
-                                                          projectable)
+                                                            projectable)
         if safe_actions.isnan().any() or safe_actions.isinf().any():
             raise ValueError(f"""
             Safe actions are NaN. 
