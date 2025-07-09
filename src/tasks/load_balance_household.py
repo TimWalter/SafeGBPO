@@ -49,7 +49,6 @@ class LoadBalanceHouseholdTask(HouseholdEnv, SafeStateTask):
     action_penalty: float = 0.001
 
     def __init__(self,
-                 rci_size: int = 4,
                  device: Literal["cpu", "cuda"] = "cpu",
                  num_envs: int = 1,
                  stochastic: bool = True,

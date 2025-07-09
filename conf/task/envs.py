@@ -70,4 +70,14 @@ class SeekerConfig(TorchVectorConfig):
         ),
     ])
 
-# TODO Add household env with parameters
+@dataclass
+class HouseholdConfig(TorchVectorConfig):
+    name: str = "HouseholdEnv"
+    num_envs: int = 8
+    wrappers: list = field(default_factory=lambda: [
+        BoundaryProjectionConfig(
+            lin_state=[5.0, 21.0, 55.0],
+            lin_action=[0.0, 0.0],
+            lin_noise=[0.0, 10.8985, 0.0],
+        ),
+    ])

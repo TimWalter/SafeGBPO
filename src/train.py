@@ -145,11 +145,20 @@ def load_env_and_projection(cfg, env, proj, tanh, passthrough):
 
         state_dim = state_dims[[key for key in state_dims.keys() if key in env][0]]
         action_dim = action_dims[[key for key in action_dims.keys() if key in env][0]]
-        proj_config = proj_class(
-            lin_state=[0.0] * state_dim,
-            lin_action=[0.0] * action_dim,
-            lin_noise=[0.0] * state_dim
-        )
+        if env != "Household":
+            proj_config = proj_class(
+                lin_state=[0.0] * state_dim,
+                lin_action=[0.0] * action_dim,
+                lin_noise=[0.0] * state_dim
+            )
+        else:
+            proj_config = proj_class(
+                lin_state=[5.0, 21.0, 55.0],
+                lin_action=[0.0, 0.0],
+                lin_noise=[0.0, 10.8985, 0.0],
+            )
+
+
         if hasattr(proj_config, "num_generators"):
             proj_config.num_generators = 2 * action_dim if action_dim != 1 else 1
         if hasattr(proj_config, "linear_projection") and tanh:
@@ -158,35 +167,38 @@ def load_env_and_projection(cfg, env, proj, tanh, passthrough):
             proj_config.passthrough = True
         cfg.env.wrappers = OmegaConf.structured([proj_config])
 
-# TODO if we need an experiment queue, we have to add the env and task here to automatically create the configs
 state_dims = {
     "Pendulum": 2,
     "CartPole": 4,
     "Quadrotor": 6,
-    "Seeker": 2
+    "Seeker": 2,
+    "Household": 3,
 }
 action_dims = {
     "Pendulum": 1,
     "CartPole": 1,
     "Quadrotor": 2,
-    "Seeker": 2
+    "Seeker": 2,
+    "Household": 2
 }
 samples = {
     "BalancePendulum": 100_000,
     "BalanceQuadrotor": 200_000,
     "NavigateSeeker": 10_000_000,
+    "LoadBalanceHousehold": 100_000,
 }
 
 eval_freq = {
     "BalancePendulum": 2_500,
     "BalanceQuadrotor": 5_000,
     "NavigateSeeker": 50_000,
+    "LoadBalanceHousehold": 2_500,
 }
 
 # FLAGS
 # 0 = Hyperparameter search
 experiment_queue = [
-    [1, "BalancePendulum", "SHAC", "ZonotopeRayMap", False, False, False],
+    [1, "LoadBalanceHousehold", "SHAC", "BoundaryProjection", False, False, False],
 ]
 
 if __name__ == "__main__":

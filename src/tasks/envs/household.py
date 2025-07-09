@@ -85,7 +85,7 @@ class HouseholdEnv(TorchVectorEnv):
 
     # Dim==state_shape[1] is required for the linearisation, such that the requirements
     # for a full dimensional box are given.
-    noise: sets.Box = sets.Box(torch.zeros(1, 3), torch.tensor([[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]]))
+    noise: sets.Box = sets.Box(torch.tensor([[0.0, 10.8985, 0.0]]), torch.tensor([[[0.0, 0.0, 0.0], [20.1985, 0.0, 0.0], [0.0, 0.0, 0.0]]]))
 
     screen_width = 500
     screen_height = 500
@@ -145,7 +145,7 @@ class HouseholdEnv(TorchVectorEnv):
         load_forecast = self.get_data(self.load_data, current_step, self.n_forecasts, 'p').tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
         pv_forecast = self.get_data(self.pv_data, current_step, self.n_forecasts, 'p').tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
         out_temp_forecast = self.get_data(self.heatpump_data, current_step, self.n_forecasts, 'outside_temp').tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
-        cop_forecast = self.get_data(self.heatpump_data, current_step, self.n_forecasts, "COP").tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
+        cop_forecast = 3.01#self.get_data(self.heatpump_data, current_step, self.n_forecasts, "COP").tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
         price_forecast = self.get_data(self.buying_price, current_step, self.n_forecasts, "price").tile((self.num_envs,)).reshape((self.num_envs, self.n_forecasts))
         
         return torch.cat([self.state, load_forecast, pv_forecast, out_temp_forecast, cop_forecast, price_forecast], dim=1)
@@ -197,7 +197,7 @@ class HouseholdEnv(TorchVectorEnv):
 
         current_step = self.steps.detach().cpu().numpy()[0]
         t_out = self.get_data(self.heatpump_data, current_step, 1, "outside_temp")
-        cop = self.get_data(self.heatpump_data, current_step, 1, "COP")
+        cop = 3.01#self.get_data(self.heatpump_data, current_step, 1, "COP")
 
         c_0 = (self.h_fh + self.h_out)/(self.h_out * self.tau)
         c_1 = self.h_fh/(self.h_out * self.tau)
@@ -308,14 +308,14 @@ class HouseholdEnv(TorchVectorEnv):
 
         # observe
         current_step = self.steps.detach().cpu().numpy()[0]
-        t_out = self.get_data(self.heatpump_data, current_step, 1, "outside_temp")
-        cop = self.get_data(self.heatpump_data, current_step, 1, "COP")
+        #t_out = self.get_data(self.heatpump_data, current_step, 1, "outside_temp")
+        cop = 3.01 #self.get_data(self.heatpump_data, current_step, 1, "COP")
 
         # define constants
         c_0 = (self.h_fh + self.h_out) / (self.h_out * self.tau)
         c_1 = self.h_fh / (self.h_out * self.tau)
         c_2 = self.h_fh / self.c_w_fh
-        c_3 = t_out / self.tau
+        c_3 = lin_noise[1] / self.tau
         c_4 = cop / self.c_w_fh
 
         constant_mat = torch.tensor([
@@ -332,10 +332,11 @@ class HouseholdEnv(TorchVectorEnv):
 
         action_mat = torch.zeros((3, 2), dtype=torch.float64, device=self.device)
         action_mat[0, 0] += self.dt * ess_w
-        action_mat[2, 1] += self.dt * c_4[0] * hp_w
+        action_mat[2, 1] += self.dt * c_4 * hp_w
 
         noise_mat = torch.zeros((self.state.shape[1], self.noise.center.shape[1]),
                                 dtype=torch.float64, device=self.device)
+        noise_mat[1, 1] += self.dt / self.tau
 
         return constant_mat, state_mat, action_mat, noise_mat
 
