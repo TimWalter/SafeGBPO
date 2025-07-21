@@ -34,9 +34,9 @@ class SafetyWrapper(VectorActionWrapper, ABC):
         self.state_dim = self.env.state.shape[1]
         self.action_dim = self.env.action_space.shape[1]
 
-        self.lin_state = torch.tensor(lin_state, device=self.env.device)
-        self.lin_action = torch.tensor(lin_action, device=self.env.device)
-        self.lin_noise = torch.tensor(lin_noise, device=self.env.device)
+        self.lin_state = torch.tensor(lin_state, device=self.env.device, dtype=torch.float64)
+        self.lin_action = torch.tensor(lin_action, device=self.env.device, dtype=torch.float64)
+        self.lin_noise = torch.tensor(lin_noise, device=self.env.device, dtype=torch.float64)
         self.constant_mat, self.state_mat, self.action_mat, self.noise_mat = (
             self.env.linear_dynamics(self.lin_state, self.lin_action, self.lin_noise))
 

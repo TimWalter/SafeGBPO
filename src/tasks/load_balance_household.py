@@ -7,6 +7,7 @@ from beartype import beartype
 from jaxtyping import jaxtyped, Float
 from torch import Tensor
 
+import sets
 from tasks.envs.household import HouseholdEnv
 from tasks.interfaces.safe_state_task import SafeStateTask
 from sets.zonotope import Zonotope
@@ -58,6 +59,13 @@ class LoadBalanceHouseholdTask(HouseholdEnv, SafeStateTask):
         SafeStateTask.__init__(self, device, num_state_gens=3)
         HouseholdEnv.__init__(self, device, num_envs, stochastic, render_mode, max_episode_steps)
 
+        self.domain = sets.Box(
+            torch.tensor([5.0, 21.0, 55.0], device=device, dtype=torch.float64).tile((num_envs, 1)),
+            torch.diag_embed(
+                torch.tensor([[5.0, 3.0, 45]] * num_envs,
+                             dtype=torch.float64, device=device)) / 3
+        )
+
     @jaxtyped(typechecker=beartype)
     def reset(
             self,
@@ -71,8 +79,7 @@ class LoadBalanceHouseholdTask(HouseholdEnv, SafeStateTask):
         if seed is not None:
             rng_state = torch.get_rng_state()
             torch.manual_seed(seed)
-        state = np.tile(np.array([self.soc_init, self.t_in_init, self.t_ret_init]), self.num_envs).reshape(self.num_envs, -1)
-        self.state= torch.tensor(state, dtype=torch.float64, device=self.device)
+        self.state= self.domain.sample()
 
         self.steps = torch.zeros_like(self.steps)
 

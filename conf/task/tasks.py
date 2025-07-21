@@ -11,7 +11,7 @@ class RCITaskConfig:
 class BalancePendulumConfig(RCITaskConfig, PendulumConfig):
     name: str = "BalancePendulumTask"
     rci_size: int = 4
-    max_episode_steps: int = 240
+    max_episode_steps: int = 3000
     wrappers: list = field(default_factory=lambda: [
         #BoundaryProjectionConfig(
         #    lin_state=[0.0, 0.0],
@@ -99,12 +99,12 @@ class NavigateSeekerConfig(SeekerConfig):
 @dataclass
 class LoadBalanceHouseholdConfig(HouseholdConfig):
     name: str = "LoadBalanceHouseholdTask"
-    max_episode_steps: int = 24
+    max_episode_steps: int = 24 * 30
     num_envs: int = 8
     wrappers: list = field(default_factory=lambda: [
-        BoundaryProjectionConfig(
-            lin_state=[5.0, 21.0, 55.0],
-            lin_action=[0.0, 0.0],
-            lin_noise=[0.0, 10.8985, 0.0],
-        ),
+        #BoundaryProjectionConfig(
+        #    lin_state=[5.0, 21.0, 55.0],
+        #    lin_action=[0.0, 0.0],
+        #    lin_noise=[0.0, 10.8985, 0.0],
+        #),
     ])

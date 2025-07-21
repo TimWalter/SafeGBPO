@@ -77,7 +77,7 @@ class HouseholdEnv(TorchVectorEnv):
     h_out: float = 0.26  # kW/K
     tau: float = 240  # h
     c_w_fh: float = 1.1625  # kWh/k
-    cost_coefficient_hp: float = 0.1
+    cost_coefficient_hp: float = 100
     selling_price: float = 0.08  # €/kWh 
     start_time: int = 7800  # index of data source that corresponds to our desired start time (7800=November 21st)
     n_forecasts: int = 4  # how many time steps to look into the future
@@ -99,7 +99,7 @@ class HouseholdEnv(TorchVectorEnv):
                  ):
         # load data sources
         path = os.path.join(os.path.dirname(__file__), "..", "..", "assets")
-        self.load_data = pd.read_csv(path + "/ICLR_load.csv", index_col=0)
+        self.load_data = pd.read_csv(path + "/ICLR_load.csv", index_col=0)      
         self.pv_data = pd.read_csv(path + "/ICLR_pv.csv", index_col=0)
         self.heatpump_data = pd.read_csv(path + "/DE_Temperature_and_COP2016.csv", sep=";", index_col=0)
         time_of_use_prices = np.array([0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.4, 0.4, 0.4, 0.4, 0.4, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.5, 0.5, 0.5, 0.5, 0.5, 0.2, 0.2])
