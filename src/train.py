@@ -185,20 +185,26 @@ samples = {
     "BalancePendulum": 100_000,
     "BalanceQuadrotor": 200_000,
     "NavigateSeeker": 10_000_000,
-    "LoadBalanceHousehold": 100_000,
+    "LoadBalanceHousehold": 1_000_000,
 }
 
 eval_freq = {
     "BalancePendulum": 2_500,
     "BalanceQuadrotor": 5_000,
     "NavigateSeeker": 50_000,
-    "LoadBalanceHousehold": 2_500,
+    "LoadBalanceHousehold": 10_000,
 }
 
 # FLAGS
 # 0 = Hyperparameter search
 experiment_queue = [
-    [1, "LoadBalanceHousehold", "SHAC", "BoundaryProjection", False, False, False],
+    [1, "LoadBalanceHousehold", "SHAC", "OrthogonalRayMap", False, False, False],
+    [1, "LoadBalanceHousehold", "PPO", "", False, False, False],
+    [1, "LoadBalanceHousehold", "PPO", "BoundaryProjection", False, False, False],
+    [1, "LoadBalanceHousehold", "PPO", "ZonotopeRayMap", False, False, False],
+    [1, "LoadBalanceHousehold", "SAC", "", False, False, False],
+    [1, "LoadBalanceHousehold", "SAC", "BoundaryProjection", False, False, False],
+    [1, "LoadBalanceHousehold", "SAC", "ZonotopeRayMap", False, False, False],
 ]
 
 if __name__ == "__main__":
@@ -222,7 +228,7 @@ if __name__ == "__main__":
             study = optuna.create_study(direction="maximize",
                                         sampler=sampler,
                                         pruner=pruner,
-                                        storage="sqlite:///navigate_seeker_soft.sqlite3",
+                                        storage="sqlite:///loadbalance.sqlite3",
                                         study_name=experiment[2])
 
             pre_valued_objective = lambda trial: objective(trial, experiment[1:])
