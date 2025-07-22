@@ -43,9 +43,9 @@ class OrthogonalRayMapWrapper(RayMapWrapper):
                         ) -> Float[Tensor, "batch_dim {self.action_dim}"]:
             safe = torch.ones(actions.shape[0], dtype=torch.bool, device=self.env.device)
             if self.action_constrained:
-                safe &= action_eval_fn(actions)
+                safe &= action_eval_fn(actions, mask)
             if self.state_constrained:
-                safe &= state_eval_fn(actions)
+                safe &= state_eval_fn(actions, mask)
 
             safe_actions = actions.clone()
             if not safe.all():
@@ -76,6 +76,7 @@ class OrthogonalRayMapWrapper(RayMapWrapper):
 
     def construct_action_safety_evaluation(self) -> Callable[
         [
+            Bool[Tensor, "batch_dim"],
             Float[Tensor, "batch_dim {self.action_dim}"]
         ],
         Bool[Tensor, "batch_dim"]]:
@@ -85,7 +86,8 @@ class OrthogonalRayMapWrapper(RayMapWrapper):
         Returns:
             Callable[
             [
-                Float[Tensor, "batch_dim {self.action_dim}"]
+                Float[Tensor, "batch_dim {self.action_dim}"],
+                Bool[Tensor, "batch_dim"]
             ],
             Bool[Tensor, "batch_dim"]]: The safe function.
         """
@@ -102,9 +104,10 @@ class OrthogonalRayMapWrapper(RayMapWrapper):
                                   variables=[weight])
 
         def action_safety_evaluation_fn(
-                actions: Float[Tensor, "batch_dim {self.action_dim}"]) \
+                actions: Float[Tensor, "batch_dim {self.action_dim}"],
+                mask: Bool[Tensor, "batch_dim"]) \
                 -> Bool[Tensor, "batch_dim"]:
-            weights = safety_layer(actions, *self.env.safe_action_set(),
+            weights = safety_layer(actions, *self.env.safe_action_set()[mask],
                                    solver_args=self.solver_args)[0]
             norm = torch.linalg.vector_norm(weights, dim=1, ord=torch.inf)
             return norm <= 1.001  # TODO why does cvxpylayers give different results?
@@ -114,6 +117,7 @@ class OrthogonalRayMapWrapper(RayMapWrapper):
 
     def construct_state_safety_evaluation(self) -> Callable[
         [
+            Bool[Tensor, "batch_dim"],
             Float[Tensor, "batch_dim action_dim"]
         ],
         Bool[Tensor, "batch_dim"]]:
@@ -124,6 +128,7 @@ class OrthogonalRayMapWrapper(RayMapWrapper):
         Returns:
             Callable[
             [
+                Bool[Tensor, "batch_dim"],
                 Float[Tensor, "batch_dim action_dim"]
             ],
             Bool[Tensor, "batch_dim"]]: The safe function.
@@ -142,15 +147,16 @@ class OrthogonalRayMapWrapper(RayMapWrapper):
                                   variables=[weight, mapping])
 
         def state_safety_evaluation_fn(
-                actions: Float[Tensor, "batch_dim {self.action_dim}"]) \
+                actions: Float[Tensor, "batch_dim {self.action_dim}"],
+                mask: Bool[Tensor, "batch_dim"]) \
                 -> Bool[Tensor, "batch_dim"]:
             weights, mappings = safety_layer(actions,
-                                             self.env.state,
-                                             *self.env.safe_state_set(),
+                                             self.env.state[mask],
+                                             *self.env.safe_state_set()[mask],
                                              solver_args=self.solver_args)
             norm = torch.linalg.matrix_norm(torch.cat([mappings,
                                                        torch.reshape(weights, (
-                                                           self.env.num_envs, -1, 1))],
+                                                           mask.sum(), -1, 1))],
                                                       dim=2), ord=torch.inf)
             return norm <= 1
 
