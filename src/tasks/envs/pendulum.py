@@ -90,7 +90,7 @@ class PendulumEnv(TorchVectorEnv):
         super().__init__(device, num_envs, observation_space, action_space,
                          [
                              [-np.pi, np.pi],
-                             [-1000, 1000]
+                             [-8, 8]
                          ],
                          stochastic, render_mode)
 
