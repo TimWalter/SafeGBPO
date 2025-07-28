@@ -10,10 +10,11 @@ from src.tasks.navigate_quadrotor import NavigateQuadrotorTask
 from src.tasks.envs.cartpole import CartPoleEnv
 from src.tasks.envs.pendulum import PendulumEnv
 from src.tasks.envs.quadrotor import QuadrotorEnv
+from src.tasks.envs.household import HouseholdEnv
 
 def env_test(env_class, **kwargs):
     env = env_class(num_envs=2, render_mode="human", **kwargs)
-    obs, _ = env.reset(seed=1)
+    obs, _ = env.reset()
     generic_action = torch.zeros(2, env.action_space.shape[1])
     generic_action[:, 0] = 1.0
     generic_action[:, 1] = 1.0
@@ -26,7 +27,7 @@ def linearisation_test(env_class, **kwargs):
     env = env_class(**kwargs)
     env.reset()
     lin_state = env.state[0, :]
-    lin_action = torch.zeros(env.action_space.shape[1])
+    lin_action = torch.zeros(env.action_space.shape[1], dtype=torch.float64)
     lin_noise = env.noise.center[0, :]
     constant_mat, state_mat, action_mat, noise_mat = env.linear_dynamics(lin_state,
                                                                          lin_action,
@@ -71,6 +72,12 @@ def test_quadrotor():
 def test_quadrotor_linearisation():
     linearisation_test(QuadrotorEnv, stochastic=False)
     linearisation_test(QuadrotorEnv, stochastic=True)
+
+def test_household():
+    env_test(HouseholdEnv)
+
+def test_household_linearisation():
+    linearisation_test(HouseholdEnv)
 
 def test_balance_cartpole():
     env_test(BalanceCartPoleTask)
