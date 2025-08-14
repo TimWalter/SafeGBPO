@@ -49,8 +49,8 @@ class PendulumEnv(Simulator):
     MASS: float = 1
     TORQUE_MAG: float = 30.0
 
-    SCREEN_WIDTH: int = 100
-    SCREEN_HEIGHT: int = 100
+    SCREEN_WIDTH: int = 500
+    SCREEN_HEIGHT: int = 500
     CLOCKWISE_IMG = Image.open(Path(__file__).parent.parent.parent / "assets" / "clockwise.png").convert("RGBA")
 
     @jaxtyped(typechecker=beartype)

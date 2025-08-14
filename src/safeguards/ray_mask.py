@@ -154,8 +154,8 @@ class RayMaskSafeguard(Safeguard):
             generator = direction @ cp.diag(length)
             constraints = [
                 # Feasibility constraints
-                self.env.action_set.min[0, :].numpy() <= center - cp.abs(generator).sum(axis=1),
-                self.env.action_set.max[0, :].numpy() >= center + cp.abs(generator).sum(axis=1),
+                self.env.action_set.min[0, :].cpu().numpy() <= center - cp.abs(generator).sum(axis=1),
+                self.env.action_set.max[0, :].cpu().numpy() >= center + cp.abs(generator).sum(axis=1),
             ]
             if self.action_constrained:
                 constraint, params = self.action_safety_constraints(center, generator)

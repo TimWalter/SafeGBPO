@@ -14,6 +14,7 @@ from envs.simulators.interfaces.simulator import Simulator
 from envs.interfaces.safe_state_env import SafeStateEnv
 from envs.interfaces.safe_action_env import SafeActionEnv
 
+
 # Actually its Simulator & (SafeStateEnv | SafeActionEnv) but this is not supported
 SafeEnv = Simulator | SafeStateEnv | SafeActionEnv
 
@@ -142,8 +143,8 @@ class Safeguard(VectorActionWrapper, ABC):
             list: The constraints.
         """
         return [
-            self.env.action_set.min[0, :].numpy() <= action,
-            self.env.action_set.max[0, :].numpy() >= action,
+            self.env.action_set.min[0, :].cpu().numpy() <= action,
+            self.env.action_set.max[0, :].cpu().numpy() >= action,
         ]
 
     @jaxtyped(typechecker=beartype)
@@ -215,34 +216,23 @@ class Safeguard(VectorActionWrapper, ABC):
             parameters += [*self.env.safe_state_set()]
         return parameters
 
-    @jaxtyped(typechecker=beartype)
-    def clear_computation_graph(self):
-        """
-        Cut the computation graph for the trajectory, such that backpropagation is cut off.
-        """
-        self.env.cut_computation_graph()
+    def __getattr__(self, name: str):
+        return getattr(self.env, name)
+
+    def __dir__(self) -> list[str]:
+        base = super().__dir__()  # Iterable[str]
+        env_attrs = dir(self.env)  # list[str]
+        attrs: set[str] = set()
+        attrs.update(base)
+        attrs.update(env_attrs)
+        return sorted(attrs)
 
     @jaxtyped(typechecker=beartype)
-    @property
-    def steps(self) -> int:
+    def reset(self, *, seed: int | None = None, options: dict | None = None) -> tuple[Tensor, dict[str, Any]]:
         """
-        Pass the number of steps taken in the environment.
+        Compatibility shim for Gymnasium's VectorEnv.reset(seed=..., options=...).
+        """
+        return self.env.reset(seed=seed)
 
-        Returns:
-            Steps.
-        """
-        return self.env.steps
 
-    @jaxtyped(typechecker=beartype)
-    def eval_reset(self) -> tuple[
-        Float[Tensor, "{self.batch_dim} {self.env.obs_dim}"],
-        dict[str, Any]
-    ]:
-        """
-        Reset all parallel environments and return a batch of initial observations
-        and info for evaluation.
-
-        Returns:
-            A batch of observations and info from the vectorized environment.
-        """
-        return self.env.eval_reset()
+Simulator.register(Safeguard)
