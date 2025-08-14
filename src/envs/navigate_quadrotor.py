@@ -425,7 +425,7 @@ class NavigateQuadrotorEnv(QuadrotorEnv, SafeStateEnv):
 
                 img = Image.alpha_composite(img, overlay)
 
-            frames.append(to_tensor(img))
+            frames.append((to_tensor(img) * 255).to(torch.uint8))
 
         # invalidate the cached safe state set
         self.last_safe_state_set.generator *= 0.0

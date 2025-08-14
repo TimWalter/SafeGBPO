@@ -49,8 +49,8 @@ class PendulumEnv(Simulator):
     MASS: float = 1
     TORQUE_MAG: float = 30.0
 
-    SCREEN_WIDTH: int = 500
-    SCREEN_HEIGHT: int = 500
+    SCREEN_WIDTH: int = 100
+    SCREEN_HEIGHT: int = 100
     CLOCKWISE_IMG = Image.open(Path(__file__).parent.parent.parent / "assets" / "clockwise.png").convert("RGBA")
 
     @jaxtyped(typechecker=beartype)
@@ -240,6 +240,6 @@ class PendulumEnv(Simulator):
                     paste_pos = (offset - img_size // 2, offset - img_size // 2)
                     img.paste(scaled_img, paste_pos, scaled_img)
 
-            frames.append(to_tensor(img))
+            frames.append((to_tensor(img) * 255).to(torch.uint8))
 
         return frames

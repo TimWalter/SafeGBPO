@@ -1,6 +1,6 @@
-import numpy as np
 import torch
 import wandb
+import torchvision.utils
 from beartype import beartype
 from jaxtyping import jaxtyped
 from optuna import Trial, TrialPruned
@@ -110,16 +110,17 @@ class Logger:
             observation, reward, terminated, truncated, info = self.eval_env.step(action)
             terminal = (terminated | truncated)[0].item()
             if record:
-                frame = self.eval_env.render()
+                frame = torchvision.utils.make_grid(torch.stack(self.eval_env.render()),
+                                                    nrow=int(torch.sqrt(torch.tensor([self.eval_env.num_envs]))))
                 frames += [frame]
 
-            eval_reward += reward.sum()
+            eval_reward += reward.sum().item()
             steps += 1
 
         self.log_data["eval/Average Reward"] = eval_reward / self.eval_env.num_envs / steps
 
         if record:
-            frames = np.array(frames).transpose([0, 3, 1, 2])
+            frames = torch.stack(frames).numpy()
             self.log_data["eval/Video"] = wandb.Video(frames, fps=60, format="mp4")
 
         if eval_reward > self.best_reward:

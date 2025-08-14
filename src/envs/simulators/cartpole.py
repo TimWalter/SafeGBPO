@@ -234,6 +234,6 @@ class CartPoleEnv(Simulator):
                 fill=(129, 132, 203)
             )
 
-            frames.append(to_tensor(img))
+            frames.append((to_tensor(img) * 255).to(torch.uint8))
 
         return frames

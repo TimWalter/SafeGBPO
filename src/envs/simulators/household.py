@@ -223,6 +223,6 @@ class HouseholdEnv(Simulator):
         frames = []
         for i in range(self.num_envs):
             img = Image.new("RGB", (self.SCREEN_WIDTH, self.SCREEN_HEIGHT), "white")
-            frames.append(to_tensor(img))
+            frames.append((to_tensor(img) * 255).to(torch.uint8))
 
         return frames

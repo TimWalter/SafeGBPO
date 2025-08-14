@@ -199,7 +199,7 @@ class SeekerEnv(Simulator):
         for i in range(self.num_envs):
             img, draw = self.draw_seeker(state[i], goal[i])
 
-            frames.append(to_tensor(img))
+            frames.append((to_tensor(img) * 255).to(torch.uint8))
 
         return frames
 

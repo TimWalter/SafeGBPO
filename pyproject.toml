@@ -17,5 +17,5 @@ dependencies = [
     "pytest>=8.4.1",
     "torch>=2.7.1",
     "torchvision>=0.22.1",
-    "wandb>=0.21.1",
+    "wandb[media]>=0.21.1",
 ]

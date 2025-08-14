@@ -235,7 +235,7 @@ class QuadrotorEnv(Simulator):
         for i in range(self.num_envs):
             img, draw = self.draw_quadrotor(state[i], goal[i])
 
-            frames.append(to_tensor(img))
+            frames.append((to_tensor(img) * 255).to(torch.uint8))
 
         return frames
 
