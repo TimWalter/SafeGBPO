@@ -308,7 +308,7 @@ class NavigateSeekerEnv(SeekerEnv, SafeActionEnv):
 
     @jaxtyped(typechecker=beartype)
     def eval_reset(self) -> tuple[
-        Float[Tensor, "{self.num_envs} {self.obs_dim]}"],
+        Float[Tensor, "{self.num_envs} {self.obs_dim}"],
         dict[str, Any]
     ]:
         """

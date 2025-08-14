@@ -52,7 +52,7 @@ class NavigateSeekerConfig(EnvConfig):
     num_obstacles: int = 1
     min_radius: float = 2.0
     max_radius: float = 4.0
-    draw_safe_state_set: bool = False
+    draw_safe_action_set: bool = False
 
 
 @dataclass

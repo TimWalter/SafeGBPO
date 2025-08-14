@@ -329,7 +329,7 @@ class NavigateQuadrotorEnv(QuadrotorEnv, SafeStateEnv):
 
     @jaxtyped(typechecker=beartype)
     def eval_reset(self) -> tuple[
-        Float[Tensor, "{self.num_envs} {self.obs_dim]}"],
+        Float[Tensor, "{self.num_envs} {self.obs_dim}"],
         dict[str, Any]
     ]:
         """
@@ -448,10 +448,10 @@ class NavigateQuadrotorEnv(QuadrotorEnv, SafeStateEnv):
             center, safe_position, safe_velocity = self.safe_center(reachable_set)
 
             # Separate as geo_mean is not maximising correctly if one length is 0
-            pos_generator = torch.where(safe_position,
+            pos_generator = torch.where(safe_position.unsqueeze(1).unsqueeze(2),
                                          self.compute_position_generator(center),
                                          torch.ones(self.num_envs, self.state_dim, 2) * 1e-2)
-            vel_generator = torch.where(safe_velocity,
+            vel_generator = torch.where(safe_velocity.unsqueeze(1).unsqueeze(2),
                                          self.compute_velocity_generator(center, reachable_set),
                                          torch.ones(self.num_envs, self.state_dim, 2) * 1e-2)
             generator = torch.cat([pos_generator, vel_generator, self.roll_generators], dim=2)

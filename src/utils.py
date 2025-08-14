@@ -69,7 +69,7 @@ def categorise_run(cfg: Experiment) -> tuple[str, list[str]]:
 
 
 @jaxtyped(typechecker=beartype)
-def import_module(modules: dict[str, str | Path], name: str) -> Callable[..., Any]:
+def import_module(modules: dict[str, str | Path], name: str):
     """
     Import a class from a module by name.
 

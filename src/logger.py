@@ -119,7 +119,7 @@ class Logger:
 
         self.log_data["eval/Average Reward"] = eval_reward / self.eval_env.num_envs / steps
 
-        if record:
+        if record and frames[0].numel() != 0:
             frames = torch.stack(frames).numpy()
             self.log_data["eval/Video"] = wandb.Video(frames, fps=60, format="mp4")
 
