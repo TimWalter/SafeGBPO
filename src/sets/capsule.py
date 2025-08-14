@@ -37,7 +37,7 @@ class Capsule(ConvexSet):
             end: The second endpoint of the capsule.
             radius: The radius of the capsule.
         """
-        super().__init__(start.device, *start.shape)
+        super().__init__(*start.shape)
         self.start = start
         self.end = end
         self.radius = radius
@@ -99,7 +99,7 @@ class Capsule(ConvexSet):
         """
         from src.sets.ball import Ball
 
-        t = torch.rand(self.start.shape[0], 1, device=self.device)
+        t = torch.rand(self.start.shape[0], 1)
         line_samples = t * self.start + (1 - t) * self.end
         return Ball(line_samples, self.radius).sample()
 

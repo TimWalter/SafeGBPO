@@ -1,12 +1,11 @@
 import torch
-from algorithms.components.coupled_tensor import CoupledTensor
-from algorithms.components.coupled_buffer import CoupledBuffer
+from learning_algorithms.components.coupled_tensor import CoupledTensor
+from learning_algorithms.components.coupled_buffer import CoupledBuffer
 
 
 def init_coupled_tensor():
-    device = torch.device("cpu")
-    ct = CoupledTensor((3, 6, 2), torch.float64, device)
-    ct.tensor = torch.arange(3 * 6 * 2, dtype=torch.float64).reshape(3, 6, 2)
+    ct = CoupledTensor(3, 6, 2)
+    ct.tensor = torch.arange(3 * 6 * 2).reshape(3, 6, 2).to(torch.get_default_dtype())
     return ct
 
 
@@ -75,58 +74,58 @@ def test_coupled_tensor_gradients():
     ct = init_coupled_tensor()
     t = torch.ones(6, dtype=torch.int64)
 
-    gradient_tacker = torch.ones((6,2), dtype=torch.float64, requires_grad=True)
+    gradient_tacker = torch.ones((6,2), requires_grad=True)
     ct[t] = gradient_tacker
 
-    loss = torch.zeros(6, dtype=torch.float64)
+    loss = torch.zeros(6)
     loss -= (ct[t] * 2).sum(dim=1)
 
     loss.backward(torch.ones([6]))
     assert gradient_tacker.grad[0,0] == -2.0
 
 def test_coupled_buffer_gradients():
-    rb = CoupledBuffer(10, 6, 2, True,device=torch.device("cpu"))
 
-    gradient_tacker_obs = torch.ones((6,2), dtype=torch.float64, requires_grad=True)
-    gradient_tacker_rew = torch.ones(6, dtype=torch.float64, requires_grad=True)
-    target_values = torch.ones(6, dtype=torch.float64, requires_grad=False)
+    cb = CoupledBuffer(10, 6, 2, True)
+
+    gradient_tacker_obs = torch.ones((6,2), requires_grad=True)
+    gradient_tacker_rew = torch.ones(6, requires_grad=True)
+    target_values = torch.ones(6, requires_grad=False)
     episode_ends = torch.zeros(6, dtype=torch.bool, requires_grad=False)
 
     dummy_obs = torch.zeros_like(gradient_tacker_obs, requires_grad=False)
     dummy_rew = torch.zeros_like(gradient_tacker_rew, requires_grad=False)
     dummy_target = torch.zeros_like(target_values, requires_grad=False)
     dummy_episode_ends = torch.zeros_like(episode_ends, requires_grad=False)
-    rb.add(dummy_rew, dummy_obs, dummy_target, dummy_episode_ends)
-    rb.add(dummy_rew, dummy_obs, dummy_target, dummy_episode_ends, dummy_obs, dummy_target)
-    rb.add(gradient_tacker_rew, gradient_tacker_obs, target_values, episode_ends)
-    rb.add(dummy_rew, dummy_obs, dummy_target, dummy_episode_ends)
+    cb.add(dummy_obs, dummy_rew, dummy_episode_ends, dummy_target)
+    cb.add(gradient_tacker_obs, gradient_tacker_rew, episode_ends, target_values)
+    cb.add(dummy_obs, dummy_rew, dummy_episode_ends, dummy_target)
 
-    loss = -(rb.observations * 2).sum(dim=[1,2]) - rb.rewards.sum(dim=1)
+    loss = -(cb.observations * 2).sum(dim=[1,2]) - cb.rewards.sum(dim=1)
 
     loss.backward(torch.ones_like(loss))
     assert gradient_tacker_obs.grad[0,0] == -2.0
     assert gradient_tacker_rew.grad[0] == -1.0
 
-    rb.reset()
-    gradient_tacker_obs = torch.ones((6, 2), dtype=torch.float64, requires_grad=True)
-    gradient_tacker_rew = torch.ones(6, dtype=torch.float64, requires_grad=True)
-    rb.add(gradient_tacker_rew, gradient_tacker_obs, target_values, episode_ends)
+    cb.reset()
+    gradient_tacker_obs = torch.ones((6, 2), requires_grad=True)
+    gradient_tacker_rew = torch.ones(6, requires_grad=True)
+    cb.add(gradient_tacker_obs, gradient_tacker_rew, episode_ends, target_values)
 
-    loss = -(rb.observations * 2).sum(dim=[1, 2]) - rb.rewards.sum(dim=1)
+    loss = -(cb.observations * 2).sum(dim=[1, 2]) - cb.rewards.sum(dim=1)
 
     loss.backward(torch.ones_like(loss))
     assert gradient_tacker_obs.grad[0, 0] == -2.0
     assert gradient_tacker_rew.grad[0] == -1.0
 
 def test_coupled_buffer_episodic_rewards():
-    buffer = CoupledBuffer(10, 6, 2, device=torch.device("cpu"))
+    cb = CoupledBuffer(10, 6, 2)
 
-    buffer.rewards.tensor = torch.arange(10*6, dtype=torch.float64).reshape(10, 6)
-    buffer.t += 10
-    buffer.t[3] = 9
-    buffer.terminals.tensor = torch.zeros(10, 6, dtype=torch.bool)
-    buffer.terminals.tensor[6, :] = True
-    buffer.terminals.tensor[8, 2] = True
+    cb.rewards.tensor = torch.arange(10*6).reshape(10, 6)
+    cb.t += 10
+    cb.t[3] = 9
+    cb.terminals.tensor = torch.zeros(10, 6, dtype=torch.bool)
+    cb.terminals.tensor[6, :] = True
+    cb.terminals.tensor[8, 2] = True
 
-    result = buffer.episodic_rewards()
+    result = cb.episodic_rewards()
     print(result)

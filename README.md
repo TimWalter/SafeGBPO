@@ -1,4 +1,14 @@
+- wandb as excluded in pycharm
+- recommend uv
+- src as source in pycharm
+
+
+
+
 # Safeguarding Gradient-Based Policy Optimisation 
+
+
+
 
 This is the codebase from the paper "Safeguarding Gradient-Based Policy Optimisation" 
 ## Usage
@@ -6,7 +16,7 @@ This is the codebase from the paper "Safeguarding Gradient-Based Policy Optimisa
 To train an agent, use the `train.py` script and fill the experiment queue:
 
 ```bash
-python src/train.py
+python src/main.py
 ```
 
 
@@ -38,7 +48,7 @@ or utilise the `train.py` script.
 4. Create a respective task that inherits from the environment and a safety specificiation in `src/tasks/`.
 5. Create a configuration file for the new task in `conf/task/`.
 5. Select the new task in the `config.py` file.
-6. Adapt the logging procedure if wanted in [src/callbacks/train_callback.py](src/callbacks/train_callback.py)
+6. Adapt the logging procedure if wanted in [src/callbacks/train_callback.py](src/train_callback.py)
 
 ### Adding New Algorithms
 
@@ -46,7 +56,7 @@ or utilise the `train.py` script.
 2. Implement the required methods, including `_learn_episode()`.
 3. Create a configuration file for the new algorithm in `conf/algorithm/`.
 4. Select the new algorithm in the `config.py` file.
-5. Adapt the logging procedure if wanted in [src/callbacks/train_callback.py](src/callbacks/train_callback.py)
+5. Adapt the logging procedure if wanted in [src/callbacks/train_callback.py](src/train_callback.py)
 
 ### Adding New Wrappers
 
@@ -63,7 +73,7 @@ Add a new function for your algorithm and include it in the `modifications` dict
 
 The framework uses Weights & Biases (wandb) for logging and visualization. Configure WandB in the section 
 in the `config.py` file: [conf/config.py](conf/config.py#L7-14). Moreover, the main logging mechanisms
-can be found in TrainCallback: [src/callbacks/train_callback.py](src/callbacks/train_callback.py). The login key has to be provided in `train.py`.
+can be found in TrainCallback: [src/callbacks/train_callback.py](src/train_callback.py). The login key has to be provided in `train.py`.
 
 ## Testing
 

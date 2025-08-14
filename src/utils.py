@@ -1,33 +1,66 @@
-import ast
-import importlib
+from __future__ import annotations
+from typing import TYPE_CHECKING
 import os
+import ast
+from pathlib import Path
 from typing import Callable, Any
+from importlib.util import spec_from_file_location, module_from_spec
 
-from cvxpylayers.torch import CvxpyLayer
-
-
-class PassthroughCvxpyLayer(CvxpyLayer):
-    @staticmethod
-    def backward(ctx, *dvars):
-        return dvars
+from conf.safeguard import RayMaskConfig
 
 
-def find_python_files(directory: str) -> list[str]:
-    """
-    Find all Python files in a directory and its subdirectories.
+if TYPE_CHECKING:
+    from conf.experiment import Experiment
 
+def categorise_run(cfg: Experiment) -> tuple[str, list[str]]:
+    """ Categorise the run based on the configuration.
     Args:
-        directory: The directory to search in.
-
+        cfg: The configuration of the experiment.
     Returns:
-        A list of all Python files found in the directory.
+        A tuple containing the group name and a list of tags.
     """
-    python_files = []
-    for root, _, files in os.walk(directory):
-        for file in files:
-            if file.endswith(".py"):
-                python_files.append(os.path.join(root, file))
-    return python_files
+    group = ""
+    tags = []
+
+    if cfg.safeguard:
+        if cfg.safeguard.name == "BoundaryProjection":
+            group += "BP"
+            tags += ["BoundaryProjection"]
+        elif isinstance(cfg.safeguard, RayMaskConfig):
+            group += "RM"
+            tags += ["RayMask"]
+
+            if cfg.safeguard.zonotopic_approximation:
+                group += "(Z)"
+                tags += ["Zonotopic"]
+            else:
+                group += "(O)"
+                tags += ["Orthogonal"]
+            if cfg.safeguard.linear_projection:
+                group += "(Lin)"
+                tags += ["Linear"]
+            else:
+                group += "(Tanh)"
+                tags += ["Hyperbolic"]
+            if cfg.safeguard.passthrough:
+                group += "(PT)"
+                tags += ["Passthrough"]
+        if cfg.safeguard.regularisation_coefficient > 0:
+            group += "(Reg)"
+            tags += ["Regularised"]
+    else:
+        tags += ["Unsafe"]
+
+    group += "-" + cfg.learning_algorithm.name
+    tags += [cfg.learning_algorithm.name]
+
+    group += "-" + cfg.env.name
+    tags += [cfg.env.name]
+    if hasattr(cfg.env, 'num_obstacles'):
+        group += f"(#Obs={str(cfg.env.num_obstacles)})"
+        tags += [f"#Obs{cfg.env.num_obstacles}"]
+
+    return group, tags
 
 
 def import_module(modules: dict, name: str) -> Callable:
@@ -46,14 +79,28 @@ def import_module(modules: dict, name: str) -> Callable:
 
     module_path = modules[name]
 
-    if module_path.endswith('.py'):  # Custom
-        spec = importlib.util.spec_from_file_location(name, module_path)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        return getattr(module, name)
-    else:
-        module = importlib.import_module(module_path)
-        return getattr(module, name)
+    spec = spec_from_file_location(name, module_path)
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return getattr(module, name)
+
+
+def find_python_files(directory: Path) -> list[str]:
+    """
+    Find all Python files in a directory and its subdirectories.
+
+    Args:
+        directory: The directory to search in.
+
+    Returns:
+        A list of all Python files found in the directory.
+    """
+    python_files = []
+    for root, _, files in os.walk(directory):
+        for file in files:
+            if file.endswith(".py"):
+                python_files.append(os.path.join(root, file))
+    return python_files
 
 
 def is_subclass(base: Any, subclass: str) -> bool:
@@ -74,7 +121,7 @@ def is_subclass(base: Any, subclass: str) -> bool:
     return False
 
 
-def gather_custom_modules(directory: str, subclass: str = None) -> dict:
+def gather_custom_modules(directory: Path, subclass: str = None) -> dict:
     """
     Gather all custom modules in a directory.
 

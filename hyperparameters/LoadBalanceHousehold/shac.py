@@ -1,34 +1,13 @@
-from dataclasses import dataclass, field
+from conf.learning_algorithms import SHACConfig
 
-
-@dataclass
-class SHACConfig:
-    name: str = "SHAC"
-    len_trajectories: int = 550
-    gamma: float = 0.9
-    polyak_target: float = 0.7
-    td_weight: float = 0.93
-    policy_kwargs: dict = field(default_factory=lambda: {
-        "net_arch": [512, 512, 512],
-        "activation_fn": "nn.ELU()",
-        "layer_norm": True
-    })
-    policy_learning_rate_schedule: str = "constant"
-    policy_optim_kwargs: dict = field(default_factory=lambda: {
-        "lr": 1e-6,
-        "betas": [0.9, 0.999]
-    })
-    vf_kwargs: dict = field(default_factory=lambda: {
-        "net_arch": [512, 512, 512]
-    })
-    vf_learning_rate_schedule: str = "linear"
-    vf_optim_kwargs: dict = field(default_factory=lambda: {
-        "lr": 2e-6,
-        "betas": [0.9, 0.999]
-    })
-    vf_num_fits: int = 50
-    vf_fit_num_batches: int = 100
-    clip_grad: bool = True
-    max_grad_norm: float = 1.5
-    regularisation_coefficient: float = 0.0
-    adaptive_regularisation: bool = False
+config = SHACConfig(
+    len_trajectories=550,
+    polyak_target=0.7,
+    td_weight=0.93,
+    vf_num_fits=50,
+    vf_fit_num_batches=100,
+    policy_kwargs={"net_arch": [512, 512, 512]},
+    policy_optim_kwargs={"lr": 1e-6},
+    vf_kwargs={"net_arch": [512, 512, 512]},
+    vf_optim_kwargs={"lr": 2e-6},
+)
