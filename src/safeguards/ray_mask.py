@@ -27,7 +27,7 @@ class RayMaskSafeguard(Safeguard):
 
         @staticmethod
         def backward(ctx: Any, *grad_outputs: Any) -> Any:
-            return grad_outputs, None
+            return *grad_outputs, None
 
     @jaxtyped(typechecker=beartype)
     def __init__(self,
@@ -134,7 +134,7 @@ class RayMaskSafeguard(Safeguard):
     @jaxtyped(typechecker=beartype)
     def zonotope_expansion(self) -> tuple[
         Float[Tensor, "{self.batch_dim} {self.action_dim}"],
-        Float[Tensor, "{self.batch_dim} {self.action_dim} {self.safe_action_gens}"]
+        Float[Tensor, "{self.batch_dim} {self.action_dim} {self.action_dim*2}"]
     ]:
         """
         Approximate the safe action set by a expanding zonotope.
@@ -143,10 +143,10 @@ class RayMaskSafeguard(Safeguard):
             A tuple containing the safe center and the safe generator of the zonotope.
         """
         if self.zonotope_expansion_layer is None:
-            direction = cp.Parameter((self.action_dim, self.safe_action_gens))
+            direction = cp.Parameter((self.action_dim, self.action_dim*2))
             parameters = [direction]
 
-            length = cp.Variable(self.safe_action_gens, nonneg=True)
+            length = cp.Variable(self.action_dim*2, nonneg=True)
             center = cp.Variable(self.action_dim)
 
             objective = cp.Maximize(cp.geo_mean(length))
@@ -181,7 +181,7 @@ class RayMaskSafeguard(Safeguard):
             problem = cp.Problem(objective, constraints)
             self.zonotope_expansion_layer = CvxpyLayer(problem, parameters=parameters, variables=[center, length])
 
-        directions = torch.rand(self.batch_dim, self.action_dim, self.safe_action_gens) * 2 - 1
+        directions = torch.rand(self.batch_dim, self.action_dim, self.action_dim*2) * 2 - 1
         directions = directions / torch.linalg.vector_norm(directions, dim=1, keepdim=True)
         parameters = [directions] + self.constraint_parameters()
 
@@ -194,7 +194,7 @@ class RayMaskSafeguard(Safeguard):
     def compute_distances(self,
                           action: Float[Tensor, "{self.batch_dim} {self.action_dim}"],
                           center: Float[Tensor, "{self.batch_dim} {self.action_dim}"],
-                          generator: Float[Tensor, "{self.batch_dim} {self.action_dim} {self.safe_action_gens}"]
+                          generator: Float[Tensor, "{self.batch_dim} {self.action_dim} {self.action_dim*2}"]
                           ) -> tuple[
         Float[Tensor, "{self.batch_dim} 1"],
         Float[Tensor, "{self.batch_dim} 1"]
@@ -214,7 +214,7 @@ class RayMaskSafeguard(Safeguard):
         if self.zonotope_distance_layer is None:
             directions = cp.Parameter(self.action_dim)
             cp_center = cp.Parameter(self.action_dim)
-            cp_generator = cp.Parameter((self.action_dim, self.safe_action_gens))
+            cp_generator = cp.Parameter((self.action_dim, self.action_dim*2))
             parameters = [directions, cp_center, cp_generator]
 
             dist = cp.Variable(nonneg=True)
@@ -239,7 +239,7 @@ class RayMaskSafeguard(Safeguard):
     @jaxtyped(typechecker=beartype)
     def axis_aligned_unit_box_dist(self, safe_center: Float[Tensor, "{self.batch_dim} {self.action_dim}"],
                                    direction: Float[Tensor, "{self.batch_dim} {self.action_dim}"]) \
-            -> Float[Tensor, "{self.batch_dim} {self.action_dim}"]:
+            -> Float[Tensor, "{self.batch_dim} 1"]:
         """
         Compute the boundary of the feasible action set along the given direction.
 

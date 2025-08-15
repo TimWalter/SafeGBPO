@@ -44,7 +44,7 @@ def run_experiment(cfg: Experiment, trial: Optional[optuna.Trial] = None) -> flo
     if cfg.safeguard:
         safeguard_class = import_module(modules, cfg.safeguard.name + "Safeguard")
         env = safeguard_class(env, **asdict(cfg.safeguard))
-        eval_env = safeguard_class(env, **asdict(cfg.safeguard))
+        eval_env = safeguard_class(eval_env, **asdict(cfg.safeguard))
 
     agent = import_module(modules, cfg.learning_algorithm.name)(**vars(cfg.learning_algorithm), env=env)
     logger = Logger(agent, env, eval_env, run, trial, cfg.eval_freq, cfg.fast_eval)
@@ -63,66 +63,10 @@ if __name__ == "__main__":
     wandb.login(key="")
 
     experiment_queue = [
-         Experiment(num_runs=1,
-                    learning_algorithm=PPOConfig(),
-                    env=BalancePendulumConfig(),
-                    safeguard=None,
-                    interactions=15_000,
-                    eval_freq=5_000,
-                    fast_eval=False),
-        Experiment(num_runs=1,
-                   learning_algorithm=SACConfig(),
-                   env=BalancePendulumConfig(),
-                   safeguard=None,
-                   interactions=15_000,
-                   eval_freq=5_000,
-                   fast_eval=False),
-        Experiment(num_runs=1,
-                   learning_algorithm=SHACConfig(),
-                   env=BalancePendulumConfig(),
-                   safeguard=None,
-                   interactions=15_000,
-                   eval_freq=5_000,
-                   fast_eval=False),
-        Experiment(num_runs=1,
-                   learning_algorithm=SACConfig(),
-                   env=BalancePendulumConfig(),
-                   safeguard=BoundaryProjectionConfig(),
-                   interactions=15_000,
-                   eval_freq=5_000,
-                   fast_eval=False),
-        Experiment(num_runs=1,
-                   learning_algorithm=PPOConfig(),
-                   env=BalancePendulumConfig(),
-                   safeguard=BoundaryProjectionConfig(),
-                   interactions=15_000,
-                   eval_freq=5_000,
-                   fast_eval=False),
-        Experiment(num_runs=1,
-                   learning_algorithm=SHACConfig(),
-                   env=BalancePendulumConfig(),
-                   safeguard=BoundaryProjectionConfig(),
-                   interactions=15_000,
-                   eval_freq=5_000,
-                   fast_eval=False),
-        Experiment(num_runs=1,
-                   learning_algorithm=SACConfig(),
-                   env=BalanceQuadrotorConfig(),
-                   safeguard=BoundaryProjectionConfig(),
-                   interactions=15_000,
-                   eval_freq=5_000,
-                   fast_eval=False),
-        Experiment(num_runs=1,
-                   learning_algorithm=PPOConfig(),
-                   env=BalanceQuadrotorConfig(),
-                   safeguard=BoundaryProjectionConfig(),
-                   interactions=15_000,
-                   eval_freq=5_000,
-                   fast_eval=False),
         Experiment(num_runs=1,
                    learning_algorithm=SHACConfig(),
                    env=BalanceQuadrotorConfig(),
-                   safeguard=BoundaryProjectionConfig(),
+                   safeguard=RayMaskConfig(zonotopic_approximation=False),
                    interactions=15_000,
                    eval_freq=5_000,
                    fast_eval=False),
@@ -143,6 +87,6 @@ if __name__ == "__main__":
             print(f"Best value: {study.best_value} (params: {study.best_params})")
 
         else:
-            print(f"[STATUS] Running experiment [{i+1}/{len(experiment_queue)}]")
+            print(f"[STATUS] Running experiment [{i + 1}/{len(experiment_queue)}]")
             for j in range(experiment.num_runs):
                 run_experiment(experiment)

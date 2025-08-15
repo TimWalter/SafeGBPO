@@ -218,7 +218,7 @@ class Simulator(ABC, VectorEnv):
             action_matrix: d_f(lin_state, lin_action, lin_noise)/ d_action
             noise_matrix: d_f(lin_state, lin_action, lin_noise)/ d_noise
         """
-        lin_state, lin_action, lin_noise = self.state, self.action_set.center, self.noise_set.center
+        lin_state, lin_action, lin_noise = self.state_set.center, self.action_set.center, self.noise_set.center
 
         constant_mat = self.dynamics(lin_state, lin_action, lin_noise)
 
