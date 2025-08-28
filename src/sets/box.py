@@ -35,8 +35,8 @@ class Box(Zonotope):
         if (self.edge_len == 0).any():
             u, s, vt = torch.svd(self.generator)
             self.edge_dir = u @ vt
-        elif generator.isinf().any(): # if you have infinite bounds I expect axis alignment
-            self.edge_dir = torch.diag_embed(torch.ones(self.batch_dim, self.dim, dtype=torch.float64, device=self.device))
+        elif generator.isinf().any():  # if you have infinite bounds I expect axis alignment
+            self.edge_dir = torch.diag_embed(torch.ones(self.batch_dim, self.dim))
         else:
             self.edge_dir = self.generator / self.edge_len.unsqueeze(1)
         self.edge_len[self.edge_len == 0] = 1.0e-9  # for numerical stability
@@ -71,8 +71,7 @@ class Box(Zonotope):
             A tensor of sampled points from the box.
         """
         return self.center + torch.sum(
-            self.generator * (2 * torch.rand(self.batch_dim, 1, self.dim,
-                                             device=self.device) - 1), dim=2)
+            self.generator * (2 * torch.rand(self.batch_dim, 1, self.dim) - 1), dim=2)
 
     @jaxtyped(typechecker=beartype)
     def contains(self, other: Float[Tensor, "{self.batch_dim} {self.dim}"] | ConvexSet) \
@@ -96,21 +95,14 @@ class Box(Zonotope):
             center = other.center - self.center
             projection_len = torch.sum(center.unsqueeze(2) * self.edge_dir, dim=1).abs()
             return (projection_len + other.radius <= self.edge_len).all(dim=1)
-        elif isinstance(other, sets.Box):
+        elif isinstance(other, sets.Box) or isinstance(other, sets.Zonotope):
             center = other.center - self.center
             projection_len = torch.sum(center.unsqueeze(2) * self.edge_dir, dim=1).abs()
-            supports = (self.edge_dir.unsqueeze(2) * other.generator.unsqueeze(3)).sum(
-                dim=1).abs().sum(dim=1)
+            supports = (self.edge_dir.unsqueeze(2) * other.generator.unsqueeze(3)).sum(dim=1).abs().sum(dim=1)
             return (projection_len + supports <= self.edge_len).all(dim=1)
         elif isinstance(other, sets.Capsule):
             return self.contains(sets.Ball(other.start, other.radius)) & \
                 self.contains(sets.Ball(other.end, other.radius))
-        elif isinstance(other, sets.Zonotope):
-            center = other.center - self.center
-            projection_len = torch.sum(center.unsqueeze(2) * self.edge_dir, dim=1).abs()
-            supports = (self.edge_dir.unsqueeze(2) * other.generator.unsqueeze(3)).sum(
-                dim=1).abs().sum(dim=1)
-            return (projection_len + supports <= self.edge_len).all(dim=1)
         else:
             raise NotImplementedError(
                 f"Containment check not implemented for {type(other)}")

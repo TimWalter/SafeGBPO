@@ -33,7 +33,7 @@ class Ball(ConvexSet):
             center: The center of the ball.
             radius: The radius of the ball.
         """
-        super().__init__(center.device, *center.shape)
+        super().__init__(*center.shape)
         self.center = center
         self.radius = radius
 
@@ -68,10 +68,10 @@ class Ball(ConvexSet):
         Returns:
             A tensor of sampled points from the ball.
         """
-        samples = torch.rand(self.batch_dim, self.dim, device=self.device) * 2 - 1
+        samples = torch.rand(self.batch_dim, self.dim) * 2 - 1
         samples = samples / torch.norm(samples, dim=1, keepdim=True)
         # Sphere to ball
-        samples *= torch.pow(torch.rand(self.batch_dim, 1, device=self.device),
+        samples *= torch.pow(torch.rand(self.batch_dim, 1),
                              1 / self.dim)
         samples = self.center + self.radius * samples
         return samples

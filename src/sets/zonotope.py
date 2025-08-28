@@ -36,7 +36,7 @@ class Zonotope(ConvexSet):
             center: The center of the zonotope.
             generator: The generators of the zonotope.
         """
-        super().__init__(center.device, *center.shape)
+        super().__init__(*center.shape)
         self.center = center
         self.generator = generator
         self.num_gens = self.generator.shape[2]
@@ -76,8 +76,7 @@ class Zonotope(ConvexSet):
         """
         return self.center + torch.sum(
             self.generator * (
-                    2 * torch.rand(self.batch_dim, 1, self.num_gens,
-                                   device=self.device) - 1),
+                    2 * torch.rand(self.batch_dim, 1, self.num_gens) - 1),
             dim=2)
 
     @staticmethod
@@ -170,8 +169,7 @@ class Zonotope(ConvexSet):
 
             if not problem.status == cp.OPTIMAL:
                 raise Exception("Could not compute point-zonotope containment problem.")
-            return torch.tensor([problem.value <= 1], dtype=torch.bool,
-                                device=self.device)
+            return torch.tensor([problem.value <= 1], dtype=torch.bool)
 
         elif isinstance(other, sets.Ball):
             raise NotImplementedError(
@@ -235,8 +233,7 @@ class Zonotope(ConvexSet):
             if not problem.status == cp.OPTIMAL:
                 raise Exception(
                     f"Could not compute zonotope-zonotope containment problem. {problem.status}")
-            return torch.tensor([problem.value <= 1], dtype=torch.bool,
-                                device=self.device)
+            return torch.tensor([problem.value <= 1], dtype=torch.bool)
         else:
             raise NotImplementedError(
                 f"Containment check not implemented for {type(other)}")
@@ -292,7 +289,7 @@ class Zonotope(ConvexSet):
         indices = torch.argsort(angles)
 
         # Cumulative sum for vertices following sorted angles
-        vert = torch.zeros((2, self.num_gens + 1), device=self.device)
+        vert = torch.zeros((2, self.num_gens + 1))
         for i in range(self.num_gens):
             vert[:, i + 1] = vert[:, i] + 2 * generators_norm[:, indices[i]]
 

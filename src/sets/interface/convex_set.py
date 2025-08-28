@@ -1,11 +1,10 @@
 from abc import ABC, abstractmethod
 from typing import Self
 
+from torch import Tensor
 from beartype import beartype
 from jaxtyping import jaxtyped, Float, Bool
-from torch import Tensor, device
 
-import src.sets
 
 class ConvexSet(ABC):
     """
@@ -13,7 +12,7 @@ class ConvexSet(ABC):
     """
 
     @jaxtyped(typechecker=beartype)
-    def __init__(self, _device: device, batch_dim: int, dim: int):
+    def __init__(self, batch_dim: int, dim: int):
         """
         Initialize the convex set.
 
@@ -21,7 +20,6 @@ class ConvexSet(ABC):
             batch_dim: The batch dimension of the convex set.
             dim: The dimension of the convex set.
         """
-        self.device = _device
         self.batch_dim = batch_dim
         self.dim = dim
 
