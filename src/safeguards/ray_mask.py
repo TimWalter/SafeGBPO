@@ -38,7 +38,7 @@ class RayMaskSafeguard(Safeguard):
                  **kwargs):
         """
         Args:
-            env(: A custom secured, pytorch-based environment.
+            env: A custom secured, pytorch-based environment.
             linear_projection: Whether to use linear projection.
             zonotopic_approximation: Whether to use zonotopic approximation.
             passthrough: Whether to use passthrough gradients
@@ -137,7 +137,7 @@ class RayMaskSafeguard(Safeguard):
         Float[Tensor, "{self.batch_dim} {self.action_dim} {self.action_dim*2}"]
     ]:
         """
-        Approximate the safe action set by a expanding zonotope.
+        Approximate the safe action set by an expanding zonotope.
 
         Returns:
             A tuple containing the safe center and the safe generator of the zonotope.

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Callable, Any
+from typing import TYPE_CHECKING, Any
 import os
 import ast
 import sys

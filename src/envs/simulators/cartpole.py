@@ -1,5 +1,3 @@
-from typing import Optional, Any
-
 import torch
 from torch import Tensor
 from beartype import beartype

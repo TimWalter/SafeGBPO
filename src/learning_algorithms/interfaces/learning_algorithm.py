@@ -37,7 +37,7 @@ class LearningAlgorithm(ABC):
                  regularisation_coefficient: float,
                  q_function: bool):
         """
-        Initiliase the learning algorithm.
+        Initialise the learning algorithm.
 
         Args:
             env: The environment to train on.
