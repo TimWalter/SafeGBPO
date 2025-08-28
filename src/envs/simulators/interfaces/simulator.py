@@ -258,9 +258,9 @@ class Simulator(ABC, VectorEnv):
             If one does not reset the rng_state a deterministic evaluation (desired) will lead to a deterministic
             training (undesired).
         """
-        rng_state = torch.get_rng_state()
-        obs, info = self.reset(seed=42)
-        torch.set_rng_state(rng_state)
+        devices = list(range(torch.cuda.device_count())) if torch.cuda.is_available() else []
+        with torch.random.fork_rng(devices=devices):
+            obs, info = self.reset(seed=42)
         return obs, info
 
     @jaxtyped(typechecker=beartype)
