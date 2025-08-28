@@ -343,7 +343,7 @@ class NavigateSeekerEnv(SeekerEnv, SafeActionEnv):
             self.obstacle_centers[0] = self.obstacles[0].center
             self.obstacle_radii[0] = self.obstacles[0].radius
         else:
-            super().eval_reset(seed=42)
+            super().eval_reset()
 
         return self.observation, {}
 
