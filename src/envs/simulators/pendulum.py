@@ -213,7 +213,7 @@ class PendulumEnv(Simulator):
             pole_width = 0.1 * scale
             theta = state[i, 0]
 
-            rotation_angle = theta + torch.pi / 2
+            rotation_angle = theta + torch.pi
             cos_a, sin_a = torch.cos(rotation_angle), torch.sin(rotation_angle)
 
             l, r, t, b = -pole_width / 2, pole_width / 2, 0, pole_length
