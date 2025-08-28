@@ -95,40 +95,31 @@ class Safeguard(VectorActionWrapper, ABC):
         pass
 
     @jaxtyped(typechecker=beartype)
-    def linear_step(self,
-                    action: cp.Expression | np.ndarray,
-                    state: cp.Expression | np.ndarray) \
-            -> tuple[cp.Expression | np.ndarray, np.ndarray]:
+    def linear_step(self,action: cp.Expression | np.ndarray) \
+            -> tuple[cp.Expression | np.ndarray, np.ndarray, list[cp.Parameter]]:
         """
-        Propagate the system through its linearised dynamics.
+        Propagate the system through its linearised dynamics. It is newly linearised at the current state,
+        the noise matrix is assumed to be constant, and the linearisation point of the noise matrix is assumed
+        to be the noise centre.
 
         Args:
             action: The action to take.
-            state: The current state.
 
         Returns:
-            The next state center and generator.
+            The next state center, generator and the parameters.
         """
-        # TODO fix later for re-linearisation
-        constant_mat = self.constant_mat[0].cpu().numpy()
-        state_mat = self.state_mat[0].cpu().numpy()
-        action_mat = self.action_mat[0].cpu().numpy()
+        constant_mat = cp.Parameter(self.state_dim)
+        action_mat = cp.Parameter((self.state_dim, self.action_dim))
         noise_mat = self.noise_mat[0].cpu().numpy()
 
-        lin_state = self.env.state_set.center[0].cpu().numpy()
         lin_action = self.env.action_set.center[0].cpu().numpy()
-        lin_noise = self.env.noise_set.center[0].cpu().numpy()
 
-        noise_center = self.env.noise_set.center[0].cpu().numpy()
         noise_generator = self.env.noise_set.generator[0].cpu().numpy()
 
-        next_state_center = constant_mat \
-                            + state_mat @ (state - lin_state) \
-                            + action_mat @ (action - lin_action) \
-                            + noise_mat @ (noise_center - lin_noise)
+        next_state_center = constant_mat + action_mat @ (action - lin_action)
         next_state_generator = noise_mat @ noise_generator
 
-        return next_state_center, next_state_generator
+        return next_state_center, next_state_generator, [constant_mat, action_mat]
 
     @jaxtyped(typechecker=beartype)
     def feasibility_constraints(self, action: cp.Expression | np.ndarray) \
@@ -192,11 +183,10 @@ class Safeguard(VectorActionWrapper, ABC):
         Returns:
             The constraints and parameters.
         """
-        state = cp.Parameter(self.state_dim)
         safe_state_center = cp.Parameter(self.state_dim)
         safe_state_generator = cp.Parameter((self.state_dim, self.safe_state_gens))
 
-        next_state_center, next_state_generator = self.linear_step(action, state)
+        next_state_center, next_state_generator, parameters = self.linear_step(action)
         constraints = sets.Zonotope.zonotope_containment_constraints(
             next_state_center,
             next_state_generator,
@@ -204,7 +194,7 @@ class Safeguard(VectorActionWrapper, ABC):
             safe_state_generator
         )
 
-        return constraints, [state, safe_state_center, safe_state_generator]
+        return constraints, [safe_state_center, safe_state_generator, *parameters]
 
     @jaxtyped(typechecker=beartype)
     def constraint_parameters(self) -> list[Tensor]:
@@ -212,8 +202,9 @@ class Safeguard(VectorActionWrapper, ABC):
         if self.action_constrained:
             parameters += [*self.env.safe_action_set()]
         if self.state_constrained:
-            parameters += [self.env.state]
             parameters += [*self.env.safe_state_set()]
+            constant_mat, _, action_mat, _ = self.env.linear_dynamics()
+            parameters += [constant_mat, action_mat]
         return parameters
 
     def __getattr__(self, name: str):

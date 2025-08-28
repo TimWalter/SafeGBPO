@@ -143,10 +143,10 @@ class RayMaskSafeguard(Safeguard):
             A tuple containing the safe center and the safe generator of the zonotope.
         """
         if self.zonotope_expansion_layer is None:
-            direction = cp.Parameter((self.action_dim, self.action_dim*2))
+            direction = cp.Parameter((self.action_dim, self.action_dim * 2))
             parameters = [direction]
 
-            length = cp.Variable(self.action_dim*2, nonneg=True)
+            length = cp.Variable(self.action_dim * 2, nonneg=True)
             center = cp.Variable(self.action_dim)
 
             objective = cp.Maximize(cp.geo_mean(length))
@@ -162,12 +162,12 @@ class RayMaskSafeguard(Safeguard):
                 constraints += constraint
                 parameters += params
             if self.state_constrained:
-                state = cp.Parameter(self.state_dim)
                 safe_state_center = cp.Parameter(self.state_dim)
                 safe_state_generator = cp.Parameter((self.state_dim, self.safe_state_gens))
-                parameters += [state, safe_state_center, safe_state_generator]
+                parameters += [safe_state_center, safe_state_generator]
 
-                next_state_center, next_state_noise_generator = self.linear_step(center, state)
+                next_state_center, next_state_noise_generator, linear_parameters = self.linear_step(center)
+                parameters += linear_parameters
                 next_state_action_generator = self.action_mat[0].cpu().numpy() @ generator
                 next_state_generator = cp.hstack([next_state_action_generator,
                                                   next_state_noise_generator])
@@ -181,7 +181,7 @@ class RayMaskSafeguard(Safeguard):
             problem = cp.Problem(objective, constraints)
             self.zonotope_expansion_layer = CvxpyLayer(problem, parameters=parameters, variables=[center, length])
 
-        directions = torch.rand(self.batch_dim, self.action_dim, self.action_dim*2) * 2 - 1
+        directions = torch.rand(self.batch_dim, self.action_dim, self.action_dim * 2) * 2 - 1
         directions = directions / torch.linalg.vector_norm(directions, dim=1, keepdim=True)
         parameters = [directions] + self.constraint_parameters()
 
@@ -214,7 +214,7 @@ class RayMaskSafeguard(Safeguard):
         if self.zonotope_distance_layer is None:
             directions = cp.Parameter(self.action_dim)
             cp_center = cp.Parameter(self.action_dim)
-            cp_generator = cp.Parameter((self.action_dim, self.action_dim*2))
+            cp_generator = cp.Parameter((self.action_dim, self.action_dim * 2))
             parameters = [directions, cp_center, cp_generator]
 
             dist = cp.Variable(nonneg=True)
@@ -232,7 +232,8 @@ class RayMaskSafeguard(Safeguard):
             self.zonotope_distance_layer = CvxpyLayer(problem, parameters=parameters, variables=[dist])
 
         directions = (action - center) / (torch.linalg.vector_norm(action - center, dim=1, keepdim=True) + 1e-8)
-        safe_dist = self.zonotope_distance_layer(directions, center, generator, solver_args=self.solver_args)[0].unsqueeze(1)
+        safe_dist = self.zonotope_distance_layer(directions, center, generator, solver_args=self.solver_args)[
+            0].unsqueeze(1)
         feasible_dist = self.axis_aligned_unit_box_dist(center, directions)
         return safe_dist, feasible_dist
 
@@ -285,9 +286,35 @@ class RayMaskSafeguard(Safeguard):
                 constraints += constraint
                 parameters += params
             if self.state_constrained:
-                constraint, params = self.state_safety_constraints(zonotope_boundary)
+                # Cannot multiply parameters for dpp compliance
+                safe_state_center = cp.Parameter(self.state_dim)
+                safe_state_generator = cp.Parameter((self.state_dim, self.safe_state_gens))
+                constant_mat = cp.Parameter(self.state_dim)
+                action_mat = cp.Parameter((self.state_dim, self.action_dim))
+                action_mat_times_starting_point = cp.Parameter(self.state_dim)
+                action_mat_times_direction = cp.Parameter(self.state_dim)
+
+                noise_mat = self.noise_mat[0].cpu().numpy()
+                lin_action = self.env.action_set.center[0].cpu().numpy()
+                noise_generator = self.env.noise_set.generator[0].cpu().numpy()
+
+                next_state_center = (constant_mat
+                                     + action_mat_times_starting_point
+                                     + dist * action_mat_times_direction
+                                     - action_mat @ lin_action)
+
+                next_state_generator = noise_mat @ noise_generator
+
+                constraint = sets.Zonotope.zonotope_containment_constraints(
+                    next_state_center,
+                    next_state_generator,
+                    safe_state_center,
+                    safe_state_generator
+                )
+
                 constraints += constraint
-                parameters += params
+                parameters += [safe_state_center, safe_state_generator, constant_mat, action_mat,
+                               action_mat_times_starting_point, action_mat_times_direction]
 
             problem = cp.Problem(objective, constraints)
             self.implicit_zonotope_distance_layer = CvxpyLayer(problem, parameters=parameters, variables=[dist])
@@ -299,10 +326,14 @@ class RayMaskSafeguard(Safeguard):
 
         directions = (starting_point - action) / action_dist
         parameters = [starting_point, directions] + self.constraint_parameters()
+        parameters += [torch.einsum('bij,bj->bi', parameters[-1], starting_point)]
+        parameters += [torch.einsum('bij,bj->bi', parameters[-2], directions)]
+
         dist = self.implicit_zonotope_distance_layer(*parameters, solver_args=self.solver_args)[0].unsqueeze(1)
 
-        safe_dist = torch.where(safe, torch.ones_like(dist), dist/2)
+        safe_dist = torch.where(safe, torch.ones_like(dist), dist / 2)
         safe_center = torch.where(safe, starting_point, starting_point + directions * safe_dist)
-        feasible_dist = torch.where(safe, torch.ones_like(safe_dist), self.axis_aligned_unit_box_dist(safe_center, -directions))
+        feasible_dist = torch.where(safe, torch.ones_like(safe_dist),
+                                    self.axis_aligned_unit_box_dist(safe_center, -directions))
 
         return safe_center, safe_dist, feasible_dist
