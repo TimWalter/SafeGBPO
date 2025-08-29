@@ -84,7 +84,7 @@ def test_coupled_tensor_gradients():
     assert gradient_tacker.grad[0,0] == -2.0
 
 def test_coupled_buffer_gradients():
-
+    torch.set_default_dtype(torch.float32)
     cb = CoupledBuffer(10, 6, 2, True)
 
     gradient_tacker_obs = torch.ones((6,2), requires_grad=True)

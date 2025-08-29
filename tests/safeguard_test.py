@@ -9,6 +9,7 @@ torch.set_default_dtype(torch.float64)
 
 def test_boundary_projection():
     env = BalancePendulumEnv(num_envs=2, num_steps=100)
+    env.reset()
     wrapper = BoundaryProjectionSafeguard(env)
 
     action = torch.tensor([[0.0], [1.0]], requires_grad=True)
@@ -21,6 +22,7 @@ def test_boundary_projection():
 
 def test_ray_mask():
     env = BalancePendulumEnv(num_envs=2, num_steps=100)
+    env.reset()
     for zonotopic_approximation in [True, False]:
         wrapper = RayMaskSafeguard(env, linear_projection=True, zonotopic_approximation=zonotopic_approximation,
                                    passthrough=False)
