@@ -8,6 +8,7 @@ from envs.simulators.household import HouseholdEnv
 def linearisation_test(env_class, **kwargs):
     env = env_class(num_envs=2, num_steps=1000)
     env.reset()
+
     constant_mat, state_mat, action_mat, noise_mat = env.linear_dynamics()
 
     action = torch.ones(env.num_envs, env.action_dim) * 0.1
@@ -16,6 +17,7 @@ def linearisation_test(env_class, **kwargs):
                       torch.einsum('bij,bj->bi', action_mat, action) +
                       torch.einsum('bij,bj->bi', noise_mat, env.noise_set.center - env.noise_set.center))
     lin_next_state_generator = torch.matmul(noise_mat, env.noise_set.generator)
+    lin_next_state = torch.clamp(lin_next_state, env.state_set.min, env.state_set.max)
 
     next_state_box = Box(lin_next_state,
                          lin_next_state_generator)

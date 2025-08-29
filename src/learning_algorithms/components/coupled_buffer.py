@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional, Generator
+from beartype.typing import Optional, Generator
 
 import torch
 from beartype import beartype

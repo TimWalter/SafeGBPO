@@ -83,13 +83,13 @@ def test_basic_ball():
 
 def test_basic_capsule():
     capsule = sets.Capsule(torch.tensor([[1.0, 2.0]]), torch.tensor([[3.0, 4.0]]),
-                      torch.tensor([5.0]))
+                           torch.tensor([5.0]))
     basic_test(capsule)
 
 
 def test_basic_box():
     box = sets.Box(torch.tensor([[1.0, 2.0]]), torch.tensor([[[3.0, 1.0 / 3],
-                                                         [1.0, -1.0]]]))
+                                                              [1.0, -1.0]]]))
     basic_test(box)
 
 
@@ -126,24 +126,24 @@ def test_ball_capsule_containment():
 
     contained_samples = [
         sets.Capsule(torch.tensor([[0.0, 2.0]]), torch.tensor([[2.0, 2.0]]),
-                torch.tensor([2.0])),
+                     torch.tensor([2.0])),
         sets.Capsule(torch.tensor([[0.0, 1.0]]), torch.tensor([[2.0, 3.0]]),
-                torch.tensor([1.0])),
+                     torch.tensor([1.0])),
         sets.Capsule(torch.tensor([[-1.0, 2.0]]), torch.tensor([[3.0, 2.0]]),
-                torch.tensor([1.0])),
+                     torch.tensor([1.0])),
         sets.Capsule(torch.tensor([[0.0, 3.0]]), torch.tensor([[0.0, 1.0]]),
-                torch.tensor([0.5])),
+                     torch.tensor([0.5])),
     ]
 
     uncontained_samples = [
         sets.Capsule(torch.tensor([[-1.0, 2.0]]), torch.tensor([[4.0, 2.0]]),
-                torch.tensor([3.0])),
+                     torch.tensor([3.0])),
         sets.Capsule(torch.tensor([[-1.0, 0.0]]), torch.tensor([[3.0, 4.0]]),
-                torch.tensor([3.0])),
+                     torch.tensor([3.0])),
         sets.Capsule(torch.tensor([[1.0, 4.0]]), torch.tensor([[-1.0, -1.0]]),
-                torch.tensor([0.1])),
+                     torch.tensor([0.1])),
         sets.Capsule(torch.tensor([[1.0, 2.0]]), torch.tensor([[4.1, 2.0]]),
-                torch.tensor([0.2])),
+                     torch.tensor([0.2])),
     ]
 
     containment_test(ball, contained_samples, uncontained_samples)
@@ -161,7 +161,7 @@ def test_ball_box_containment():
 
     uncontained_samples = [
         sets.Box(torch.tensor([[0.0, 0.0]]), torch.tensor([[[0.5, 1.0],
-                                                       [0.5, -1.0]]])),
+                                                            [0.5, -1.0]]])),
         sets.Box(torch.tensor([[0.0, 0.0]]), torch.tensor([[[2.0, 0.0], [0.0, 2.0]]])),
         sets.Box(torch.tensor([[-4.0, -5.0]]), torch.tensor([[[1.0, 0.0], [0.0, 1.0]]])),
         sets.Box(torch.tensor([[2.0, 2.0]]), torch.tensor([[[1.0, 0.0], [0.0, 1.0]]])),
@@ -175,25 +175,25 @@ def test_ball_zonotope_containment():
 
     contained_samples = [
         sets.Zonotope(torch.tensor([[-1.0, -2.0]]),
-                 torch.tensor([[[1.0, 0.5, 0.2], [0.5, 1.0, 0.3]]])),
+                      torch.tensor([[[1.0, 0.5, 0.2], [0.5, 1.0, 0.3]]])),
         sets.Zonotope(torch.tensor([[-1.0, -2.0]]),
-                 torch.tensor([[[0.5, 0.5, 0.1], [0.5, 0.5, 0.1]]])),
+                      torch.tensor([[[0.5, 0.5, 0.1], [0.5, 0.5, 0.1]]])),
         sets.Zonotope(torch.tensor([[-1.0, -2.0]]),
-                 torch.tensor([[[0.5, -0.5, 0.2], [-0.5, 0.5, 0.2]]])),
+                      torch.tensor([[[0.5, -0.5, 0.2], [-0.5, 0.5, 0.2]]])),
 
     ]
 
     uncontained_samples = [
         sets.Zonotope(torch.tensor([[-1.0, -2.0]]),
-                 torch.tensor([[[2.0, 0.0, 0.5], [0.0, 2.0, 0.5]]])),
+                      torch.tensor([[[2.0, 0.0, 0.5], [0.0, 2.0, 0.5]]])),
         sets.Zonotope(torch.tensor([[0.0, 0.0]]),
-                 torch.tensor([[[0.5, 1.0, 0.3], [0.5, -1.0, 0.3]]])),
+                      torch.tensor([[[0.5, 1.0, 0.3], [0.5, -1.0, 0.3]]])),
         sets.Zonotope(torch.tensor([[0.0, 0.0]]),
-                 torch.tensor([[[2.0, 0.0, 0.5], [0.0, 2.0, 0.5]]])),
+                      torch.tensor([[[2.0, 0.0, 0.5], [0.0, 2.0, 0.5]]])),
         sets.Zonotope(torch.tensor([[-4.0, -5.0]]),
-                 torch.tensor([[[1.0, 0.0, 0.2], [0.0, 1.0, 0.2]]])),
+                      torch.tensor([[[1.0, 0.0, 0.2], [0.0, 1.0, 0.2]]])),
         sets.Zonotope(torch.tensor([[2.0, 2.0]]),
-                 torch.tensor([[[1.0, 0.0, 0.3], [0.0, 1.0, 0.3]]])),
+                      torch.tensor([[[1.0, 0.0, 0.3], [0.0, 1.0, 0.3]]])),
     ]
 
     containment_test(ball, contained_samples, uncontained_samples)
@@ -201,7 +201,7 @@ def test_ball_zonotope_containment():
 
 def test_capsule_ball_containment():
     capsule = sets.Capsule(torch.tensor([[1.0, 2.0]]), torch.tensor([[3.0, 4.0]]),
-                      torch.tensor([5.0]))
+                           torch.tensor([5.0]))
 
     contained_samples = [
         sets.Ball(torch.tensor([[1.0, 2.0]]), torch.tensor([3.0])),
@@ -222,20 +222,20 @@ def test_capsule_ball_containment():
 
 def test_capsule_capsule_containment():
     capsule = sets.Capsule(torch.tensor([[1.0, 2.0]]), torch.tensor([[3.0, 4.0]]),
-                      torch.tensor([5.0]))
+                           torch.tensor([5.0]))
 
     contained_samples = [
         sets.Capsule(torch.tensor([[0.0, 2.0]]), torch.tensor([[2.0, 2.0]]),
-                torch.tensor([2.0])),
+                     torch.tensor([2.0])),
         sets.Capsule(torch.tensor([[-2.0, 3.0]]), torch.tensor([[6.0, 5.0]]),
-                torch.tensor([1.0]))
+                     torch.tensor([1.0]))
     ]
 
     uncontained_samples = [
         sets.Capsule(torch.tensor([[-3.0, -1.0]]), torch.tensor([[2.0, 2.0]]),
-                torch.tensor([0.5])),
+                     torch.tensor([0.5])),
         sets.Capsule(torch.tensor([[-3.0, 5.0]]), torch.tensor([[0.0, 0.0]]),
-                torch.tensor([0.8]))
+                     torch.tensor([0.8]))
     ]
 
     containment_test(capsule, contained_samples, uncontained_samples)
@@ -243,7 +243,7 @@ def test_capsule_capsule_containment():
 
 def test_capsule_box_containment():
     capsule = sets.Capsule(torch.tensor([[1.0, 2.0]]), torch.tensor([[3.0, 4.0]]),
-                      torch.tensor([5.0]))
+                           torch.tensor([5.0]))
 
     contained_samples = [
         sets.Box(torch.tensor([[1.0, 2.0]]), torch.tensor([[[1.0, 0.0], [0.0, 1.0]]])),
@@ -261,28 +261,28 @@ def test_capsule_box_containment():
 
 def test_capsule_zonotope_containment():
     capsule = sets.Capsule(torch.tensor([[1.0, 2.0]]), torch.tensor([[3.0, 4.0]]),
-                      torch.tensor([2.5]))
+                           torch.tensor([2.5]))
 
     contained_samples = [
         sets.Zonotope(torch.tensor([[1.0, 2.0]]),
-                 torch.tensor([[[1.0, 0.5, 0.2], [0.5, 1.0, 0.3]]])),
+                      torch.tensor([[[1.0, 0.5, 0.2], [0.5, 1.0, 0.3]]])),
         sets.Zonotope(torch.tensor([[1.0, 2.0]]),
-                 torch.tensor([[[0.5, 0.5, 0.1], [0.5, 0.5, 0.1]]])),
+                      torch.tensor([[[0.5, 0.5, 0.1], [0.5, 0.5, 0.1]]])),
         sets.Zonotope(torch.tensor([[1.0, 2.0]]),
-                 torch.tensor([[[0.5, -0.5, 0.2], [-0.5, 0.5, 0.2]]])),
+                      torch.tensor([[[0.5, -0.5, 0.2], [-0.5, 0.5, 0.2]]])),
     ]
 
     uncontained_samples = [
         sets.Zonotope(torch.tensor([[1.0, 2.0]]),
-                 torch.tensor([[[2.0, 0.0, 0.5], [0.0, 2.0, 0.5]]])),
+                      torch.tensor([[[2.0, 0.0, 0.5], [0.0, 2.0, 0.5]]])),
         sets.Zonotope(torch.tensor([[0.0, 0.0]]),
-                 torch.tensor([[[0.5, 1.0, 0.3], [0.5, -1.0, 0.3]]])),
+                      torch.tensor([[[0.5, 1.0, 0.3], [0.5, -1.0, 0.3]]])),
         sets.Zonotope(torch.tensor([[0.0, 0.0]]),
-                 torch.tensor([[[2.0, 0.0, 0.5], [0.0, 2.0, 0.5]]])),
+                      torch.tensor([[[2.0, 0.0, 0.5], [0.0, 2.0, 0.5]]])),
         sets.Zonotope(torch.tensor([[-4.0, -5.0]]),
-                 torch.tensor([[[1.0, 0.0, 0.2], [0.0, 1.0, 0.2]]])),
+                      torch.tensor([[[1.0, 0.0, 0.2], [0.0, 1.0, 0.2]]])),
         sets.Zonotope(torch.tensor([[2.0, 2.0]]),
-                 torch.tensor([[[1.0, 0.0, 0.3], [0.0, 1.0, 0.3]]])),
+                      torch.tensor([[[1.0, 0.0, 0.3], [0.0, 1.0, 0.3]]])),
     ]
 
     containment_test(capsule, contained_samples, uncontained_samples)
@@ -290,7 +290,7 @@ def test_capsule_zonotope_containment():
 
 def test_box_ball_containment():
     box = sets.Box(torch.tensor([[1.0, 2.0]]), torch.tensor([[[3.0, 1.0 / 3],
-                                                         [1.0, -1.0]]]))
+                                                              [1.0, -1.0]]]))
 
     contained_samples = [
         sets.Ball(torch.tensor([[1.0, 2.0]]), torch.tensor([1.0])),
@@ -311,24 +311,24 @@ def test_box_ball_containment():
 
 def test_box_capsule_containment():
     box = sets.Box(torch.tensor([[1.0, 2.0]]), torch.tensor([[[3.0, 1.0 / 3],
-                                                         [1.0, -1.0]]]))
+                                                              [1.0, -1.0]]]))
 
     contained_samples = [
         sets.Capsule(torch.tensor([[0.0, 1.0]]), torch.tensor([[2.0, 2.0]]),
-                torch.tensor([0.3])),
+                     torch.tensor([0.3])),
         sets.Capsule(torch.tensor([[-1.0, 0.5]]), torch.tensor([[0.0, 2.0]]),
-                torch.tensor([0.2])),
+                     torch.tensor([0.2])),
         sets.Capsule(torch.tensor([[-1.0, 1.0]]), torch.tensor([[3.0, 2.3]]),
-                torch.tensor([0.7])),
+                     torch.tensor([0.7])),
     ]
 
     uncontained_samples = [
         sets.Capsule(torch.tensor([[0.0, 1.0]]), torch.tensor([[2.0, 2.0]]),
-                torch.tensor([0.5])),
+                     torch.tensor([0.5])),
         sets.Capsule(torch.tensor([[-1.0, 0.5]]), torch.tensor([[0.0, 2.0]]),
-                torch.tensor([0.5])),
+                     torch.tensor([0.5])),
         sets.Capsule(torch.tensor([[-1.0, 1.0]]), torch.tensor([[3.0, 2.3]]),
-                torch.tensor([1.5])),
+                     torch.tensor([1.5])),
     ]
 
     containment_test(box, contained_samples, uncontained_samples)
@@ -336,27 +336,27 @@ def test_box_capsule_containment():
 
 def test_box_box_containment():
     box = sets.Box(torch.tensor([[1.0, 2.0]]), torch.tensor([[[3.0, 1.0 / 3],
-                                                         [1.0, -1.0]]]))
+                                                              [1.0, -1.0]]]))
 
     contained_samples = [
         sets.Box(torch.tensor([[1.0, 2.0]]), torch.tensor([[[0.8, 0.0],
-                                                       [0.0, 0.8]]])),
+                                                            [0.0, 0.8]]])),
         sets.Box(torch.tensor([[3.2, 2.2]]), torch.tensor([[[0.5, 0.1],
-                                                       [0.5, -0.1]]])),
+                                                            [0.5, -0.1]]])),
         sets.Box(torch.tensor([[-1.0, 1.0]]), torch.tensor([[[-0.2, 0.06],
-                                                        [0.6, 0.02]]])),
+                                                             [0.6, 0.02]]])),
     ]
 
     uncontained_samples = [
         sets.Box(torch.tensor([[1.0, 2.0]]), torch.tensor([[[0.9, 0.0], [0.0, 0.9]]])),
         sets.Box(torch.tensor([[3.0, 2.0]]), torch.tensor([[[0.5, 0.1],
-                                                       [0.5, -0.1]]])),
+                                                            [0.5, -0.1]]])),
         sets.Box(torch.tensor([[-1.0, 1.0]]), torch.tensor([[[-0.3, 0.06],
-                                                        [0.9, 0.02]]])),
+                                                             [0.9, 0.02]]])),
         sets.Box(torch.tensor([[-1.2, 1.0]]), torch.tensor([[[-0.2, 0.9],
-                                                        [0.6, 0.3]]])),
+                                                             [0.6, 0.3]]])),
         sets.Box(torch.tensor([[-1.0, 5.0]]), torch.tensor([[[0.0, 1.0],
-                                                        [1.0, 0.0]]])),
+                                                             [1.0, 0.0]]])),
     ]
 
     containment_test(box, contained_samples, uncontained_samples)
@@ -364,16 +364,16 @@ def test_box_box_containment():
 
 def test_box_zonotope_containment():
     box = sets.Box(torch.tensor([[1.0, 2.0]]), torch.tensor([[[3.0, 1.0 / 3],
-                                                         [1.0, -1.0]]]))
+                                                              [1.0, -1.0]]]))
 
     contained_samples = [
         sets.Zonotope(torch.tensor([[1.0, 2.0]]),
-                 0.9 * torch.tensor([[[1.0, 0.5, 0.2], [0.5, 1.0, 0.3]]])),
+                      0.9 * torch.tensor([[[1.0, 0.5, 0.2], [0.5, 1.0, 0.3]]])),
     ]
 
     uncontained_samples = [
         sets.Zonotope(torch.tensor([[1.0, 2.0]]),
-                 torch.tensor([[[1.0, 0.5, 0.2], [0.5, 1.0, 0.3]]])),
+                      torch.tensor([[[1.0, 0.5, 0.2], [0.5, 1.0, 0.3]]])),
     ]
 
     containment_test(box, contained_samples, uncontained_samples)
@@ -387,17 +387,17 @@ def test_zonotope_zonotope_containment():
 
     contained_samples = [
         sets.Zonotope(torch.tensor([[1.0, 2.0]]),
-                 0.9 * torch.tensor([[[1.0, 0.5, 0.2], [0.5, 1.0, 0.3]]])),
+                      0.9 * torch.tensor([[[1.0, 0.5, 0.2], [0.5, 1.0, 0.3]]])),
         sets.Zonotope(torch.tensor([[3.0, 1.0]]),
-                 0.9 * torch.tensor([[[1.0, 0.5, 0.2], [0.5, 1.0, 0.3]]])),
+                      0.9 * torch.tensor([[[1.0, 0.5, 0.2], [0.5, 1.0, 0.3]]])),
 
     ]
 
     uncontained_samples = [
         sets.Zonotope(torch.tensor([[-3.0, 3.0]]),
-                 torch.tensor([[[1.0, 0.5, 0.2], [0.5, 1.0, 0.3]]])),
+                      torch.tensor([[[1.0, 0.5, 0.2], [0.5, 1.0, 0.3]]])),
         sets.Zonotope(torch.tensor([[4.5, 0.5]]),
-                 0.9 * torch.tensor([[[1.0, 0.5, 0.2], [0.5, 1.0, 0.3]]])),
+                      0.9 * torch.tensor([[[1.0, 0.5, 0.2], [0.5, 1.0, 0.3]]])),
     ]
 
     containment_test(zonotope, contained_samples, uncontained_samples)
@@ -416,159 +416,168 @@ def test_ball_ball_intersection():
 
     intersection_test(ball, non_intersecting_samples, intersecting_samples)
 
+
 def test_ball_capsule_intersection():
     ball = sets.Ball(torch.tensor([[-1.0, -2.0]]), torch.tensor([3.0]))
 
     non_intersecting_samples = [
         sets.Capsule(torch.tensor([[3.0, 2.0]]), torch.tensor([[3.0, 4.0]]),
-                torch.tensor([1.0])),
+                     torch.tensor([1.0])),
         sets.Capsule(torch.tensor([[-4.0, -8.0]]), torch.tensor([[10.0, -4.0]]),
-                torch.tensor([1.0])),
+                     torch.tensor([1.0])),
     ]
 
     intersecting_samples = [
         sets.Capsule(torch.tensor([[1.0, 1.0]]), torch.tensor([[3.0, 4.0]]),
-                torch.tensor([1.0])),
+                     torch.tensor([1.0])),
         sets.Capsule(torch.tensor([[-10.0, -10.0]]), torch.tensor([[-3.0, -4.0]]),
-                torch.tensor([1.0])),
+                     torch.tensor([1.0])),
         sets.Capsule(torch.tensor([[-8.0, -4.0]]), torch.tensor([[3.0, 4.0]]),
-                torch.tensor([1.0])),
+                     torch.tensor([1.0])),
     ]
 
     intersection_test(ball, non_intersecting_samples, intersecting_samples)
+
 
 def test_ball_box_intersection():
     ball = sets.Ball(torch.tensor([[-1.0, -2.0]]), torch.tensor([3.0]))
 
     non_intersecting_samples = [
         sets.Box(torch.tensor([[4.0, 2.0]]), torch.tensor([[[1.0, 0.0],
-                                                       [0.0, 1.0]]])),
+                                                            [0.0, 1.0]]])),
     ]
 
     intersecting_samples = [
         sets.Box(torch.tensor([[2.5, -0.5]]), torch.tensor([[[1.0, 0.0],
-                                                      [0.0, 1.0]]])),
+                                                             [0.0, 1.0]]])),
         sets.Box(torch.tensor([[-4.0, -4.0]]), torch.tensor([[[1.0, 0.0],
-                                                        [0.0, 1.0]]])),
+                                                              [0.0, 1.0]]])),
         sets.Box(torch.tensor([[-1.0, 2.0]]), torch.tensor([[[1.0, 1.0],
-                                                         [1.0, -1.0]]])),
+                                                             [1.0, -1.0]]])),
     ]
 
     intersection_test(ball, non_intersecting_samples, intersecting_samples)
+
 
 def test_ball_zonotope_intersection():
     ball = sets.Ball(torch.tensor([[-1.0, -2.0]]), torch.tensor([3.0]))
 
     non_intersecting_samples = [
         sets.Zonotope(torch.tensor([[-3.0, 3.0]]), torch.tensor([[[1.0, 0.5, 0.2],
-                                                             [0.5, 1.0, 0.3]]])),
+                                                                  [0.5, 1.0, 0.3]]])),
     ]
 
     intersecting_samples = [
         sets.Zonotope(torch.tensor([[-1.0, 1.0]]), torch.tensor([[[1.0, 0.5, 0.2],
-                                                             [0.5, 1.0, 0.3]]])),
+                                                                  [0.5, 1.0, 0.3]]])),
         # Problem of both overapproximations
         sets.Zonotope(torch.tensor([[-1.5, 2.2]]), torch.tensor([[[1.0, 0.5, 0.2],
-                                                             [0.5, 1.0, 0.3]]])),
+                                                                  [0.5, 1.0, 0.3]]])),
     ]
 
     intersection_test(ball, non_intersecting_samples, intersecting_samples)
 
+
 def test_capsule_capsule_intersection():
     capsule = sets.Capsule(torch.tensor([[1.0, 2.0]]), torch.tensor([[3.0, 4.0]]),
-                      torch.tensor([1.0]))
+                           torch.tensor([1.0]))
 
     non_intersecting_samples = [
         sets.Capsule(torch.tensor([[4.0, 1.0]]), torch.tensor([[7.0, 4.0]]),
-                torch.tensor([0.5])),
+                     torch.tensor([0.5])),
         sets.Capsule(torch.tensor([[0.0, -3.0]]), torch.tensor([[8.0, 5.0]]),
-                torch.tensor([0.5])),
+                     torch.tensor([0.5])),
         sets.Capsule(torch.tensor([[0.0, -3.0]]), torch.tensor([[3.0, 0.0]]),
-                torch.tensor([0.5])),
+                     torch.tensor([0.5])),
         sets.Capsule(torch.tensor([[4.0, 6.0]]), torch.tensor([[2.0, 6.0]]),
-                torch.tensor([0.5])),
+                     torch.tensor([0.5])),
     ]
 
     intersecting_samples = [
         sets.Capsule(torch.tensor([[-0.5, 1.0]]), torch.tensor([[-0.5, 3.0]]),
-                torch.tensor([0.5])),
+                     torch.tensor([0.5])),
         sets.Capsule(torch.tensor([[2.0, 5.0]]), torch.tensor([[1.0, 5.0]]),
-                torch.tensor([0.5])),
+                     torch.tensor([0.5])),
     ]
 
     intersection_test(capsule, non_intersecting_samples, intersecting_samples)
 
+
 def test_capsule_box_intersection():
     capsule = sets.Capsule(torch.tensor([[1.0, 2.0]]), torch.tensor([[3.0, 4.0]]),
-                      torch.tensor([1.0]))
+                           torch.tensor([1.0]))
 
     non_intersecting_samples = [
         sets.Box(torch.tensor([[0.0, 4.5]]), torch.tensor([[[0.5, 0.0],
-                                                       [0.0, 0.5]]])),
+                                                            [0.0, 0.5]]])),
     ]
 
     intersecting_samples = [
         sets.Box(torch.tensor([[4.0, 2.0]]), torch.tensor([[[1.0, 0.0],
-                                                       [0.0, 1.0]]])),
+                                                            [0.0, 1.0]]])),
         sets.Box(torch.tensor([[0.0, 1.0]]), torch.tensor([[[0.5, 0.5],
-                                                       [0.5, -0.5]]])),
+                                                            [0.5, -0.5]]])),
     ]
 
     intersection_test(capsule, non_intersecting_samples, intersecting_samples)
 
+
 def test_capsule_zonotope_intersection():
     capsule = sets.Capsule(torch.tensor([[1.0, 2.0]]), torch.tensor([[3.0, 4.0]]),
-                      torch.tensor([1.0]))
+                           torch.tensor([1.0]))
 
     non_intersecting_samples = [
         sets.Zonotope(torch.tensor([[3.0, 0.0]]), 0.5 * torch.tensor([[[1.0, 0.5, 0.2],
-                                                            [0.5, 1.0, 0.3]]])),
+                                                                       [0.5, 1.0, 0.3]]])),
     ]
 
     intersecting_samples = [
         sets.Zonotope(torch.tensor([[1.0, 2.0]]), torch.tensor([[[1.0, 0.5, 0.2],
-                                                            [0.5, 1.0, 0.3]]])),
+                                                                 [0.5, 1.0, 0.3]]])),
     ]
 
     intersection_test(capsule, non_intersecting_samples, intersecting_samples)
 
+
 def test_box_box_intersection():
     box = sets.Box(torch.tensor([[1.0, 2.0]]), torch.tensor([[[3.0, 1.0 / 3],
-                                                         [1.0, -1.0]]]))
+                                                              [1.0, -1.0]]]))
 
     non_intersecting_samples = [
         sets.Box(torch.tensor([[5.0, 0.0]]), torch.tensor([[[1.0, 1.0],
-                                                       [1.0, -1.0]]])),
+                                                            [1.0, -1.0]]])),
         sets.Box(torch.tensor([[5.0, 0.5]]), torch.tensor([[[1.0, 1.0],
-                                                       [1.0, -1.0]]])),
+                                                            [1.0, -1.0]]])),
     ]
 
     intersecting_samples = [
         sets.Box(torch.tensor([[4.0, 2.0]]), torch.tensor([[[1.0, 0.0],
-                                                       [0.0, 1.0]]])),
+                                                            [0.0, 1.0]]])),
         sets.Box(torch.tensor([[4.0, 2.5]]), torch.tensor([[[0.15, 0.25 / 3],
-                                                       [0.05, -0.25]]])),
+                                                            [0.05, -0.25]]])),
         sets.Box(torch.tensor([[3.0, 3.0]]), torch.tensor([[[0.15, 0.25 / 3],
-                                                       [0.05, -0.25]]])),
+                                                            [0.05, -0.25]]])),
     ]
 
     intersection_test(box, non_intersecting_samples, intersecting_samples)
 
+
 def test_box_zonotope_intersection():
     box = sets.Box(torch.tensor([[1.0, 2.0]]), torch.tensor([[[3.0, 1.0 / 3],
-                                                         [1.0, -1.0]]]))
+                                                              [1.0, -1.0]]]))
 
     non_intersecting_samples = [
         sets.Zonotope(torch.tensor([[3.0, 0.0]]), 0.5 * torch.tensor([[[1.0, 0.5, 0.2],
-                                                            [0.5, 1.0, 0.3]]])),
+                                                                       [0.5, 1.0, 0.3]]])),
     ]
 
     intersecting_samples = [
         sets.Zonotope(torch.tensor([[0.0, 0.0]]), 0.5 * torch.tensor([[[1.0, 0.5, 0.2],
-                                                                  [0.5, 1.0, 0.3]]])),
+                                                                       [0.5, 1.0, 0.3]]])),
     ]
 
     intersection_test(box, non_intersecting_samples, intersecting_samples)
+
 
 def test_zonotope_zonotope_intersection():
     zonotope = sets.Zonotope(torch.tensor([[1.0, 2.0]]), torch.tensor([[
@@ -578,12 +587,12 @@ def test_zonotope_zonotope_intersection():
 
     non_intersecting_samples = [
         sets.Zonotope(torch.tensor([[-3.0, -4.0]]), 0.5 * torch.tensor([[[1.0, 0.5, 0.2],
-                                                            [0.5, 1.0, 0.3]]])),
+                                                                         [0.5, 1.0, 0.3]]])),
     ]
 
     intersecting_samples = [
         sets.Zonotope(torch.tensor([[0.0, 0.0]]), 0.5 * torch.tensor([[[1.0, 0.5, 0.2],
-                                                                  [0.5, 1.0, 0.3]]])),
+                                                                       [0.5, 1.0, 0.3]]])),
     ]
 
     intersection_test(zonotope, non_intersecting_samples, intersecting_samples)
