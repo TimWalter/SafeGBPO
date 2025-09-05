@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Union
 
 import torch
 import cvxpy as cp
@@ -194,7 +194,8 @@ class RayMaskSafeguard(Safeguard):
     def compute_distances(self,
                           action: Float[Tensor, "{self.batch_dim} {self.action_dim}"],
                           center: Float[Tensor, "{self.batch_dim} {self.action_dim}"],
-                          generator: Float[Tensor, "{self.batch_dim} {self.action_dim} {self.action_dim*2}"]
+                          generator: Union[Float[Tensor, "{self.batch_dim} {self.action_dim} {self.safe_action_gens}"],
+                          Float[Tensor, "{self.batch_dim} {self.action_dim} {self.action_dim*2}"]]
                           ) -> tuple[
         Float[Tensor, "{self.batch_dim} 1"],
         Float[Tensor, "{self.batch_dim} 1"]
@@ -214,7 +215,8 @@ class RayMaskSafeguard(Safeguard):
         if self.zonotope_distance_layer is None:
             directions = cp.Parameter(self.action_dim)
             cp_center = cp.Parameter(self.action_dim)
-            cp_generator = cp.Parameter((self.action_dim, self.action_dim * 2))
+            cp_generator = cp.Parameter(
+                (self.action_dim, self.action_dim * 2 if self.state_constrained else self.safe_action_gens))
             parameters = [directions, cp_center, cp_generator]
 
             dist = cp.Variable(nonneg=True)

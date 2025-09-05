@@ -159,8 +159,8 @@ class NavigateSeekerEnv(SeekerEnv, SafeActionEnv):
             center = sample[:, i * 3:i * 3 + 2]
             radius = sample[:, i * 3 + 2]
 
-        self.obstacles[i].center[obstructing, :] = center
-        self.obstacles[i].radius[obstructing] = radius
+        self.obstacles[i].center[obstructing, :] = center[obstructing, :]
+        self.obstacles[i].radius[obstructing] = radius[obstructing]
 
     @jaxtyped(typechecker=beartype)
     def check_obstruction(self, i: int) -> Bool[Tensor, "{self.num_envs}"]:
