@@ -20,7 +20,7 @@ def run_experiment(cfg: Experiment, trial: Optional[optuna.Trial] = None) -> flo
 
     group, tags = categorise_run(cfg)
 
-    run = wandb.init(project="Leveraging Analytical Gradients for Provably Safe Reinforcement Learning",
+    run = wandb.init(project="Leveraging Analytical Gradients in Provably Safe Reinforcement Learning",
                      config=asdict(cfg),
                      monitor_gym=True,
                      group=group,
