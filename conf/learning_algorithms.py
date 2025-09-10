@@ -48,6 +48,7 @@ class PPOConfig(LearningAlgorithmConfig):
     num_fits: int = 32
 
     def vary(self, trial: Trial, cfg: Experiment):
+        super().vary(trial, cfg)
         len_trajectories_in_eps = trial.suggest_int("len_trajectories_in_eps", 1, 5)
         self.len_trajectories = cfg.env.num_steps * len_trajectories_in_eps
         self.clip_coef = trial.suggest_float("clip_coef", 0.2, 0.5)
@@ -63,6 +64,7 @@ class SACConfig(LearningAlgorithmConfig):
     target_frequency: int = 7
 
     def vary(self, trial: Trial, cfg: Experiment):
+        super().vary(trial, cfg)
         self.buffer_size = trial.suggest_int("buffer_size", cfg.env.num_steps * cfg.env.num_envs, cfg.interactions)
         self.polyak_target = trial.suggest_float("polyak_target", 0.1, 1.0)
         self.learning_starts = trial.suggest_int("learning_starts", 0, 0.1 * cfg.interactions)
@@ -79,6 +81,7 @@ class SHACConfig(LearningAlgorithmConfig):
     vf_fit_num_batches: int = 1
 
     def vary(self, trial: Trial, cfg: Experiment):
+        super().vary(trial, cfg)
         self.len_trajectories = trial.suggest_int("len_trajectories", cfg.env.num_steps // 20, cfg.env.num_steps)
         self.polyak_target = trial.suggest_float("polyak_target", 0.1, 1.0)
         self.td_weight = trial.suggest_float("td_weight", 0.9, 0.99)
