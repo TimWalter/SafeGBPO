@@ -30,13 +30,13 @@ class LearningAlgorithmConfig:
     def vary(self, trial: Trial, cfg: Experiment):
         policy_depth = trial.suggest_int("policy_depth", 2, 4)
         policy_width = trial.suggest_int("policy_width", 32, 1024)
-        self.policy_kwargs.net_arch = [policy_width] * policy_depth
-        self.policy_optim_kwargs.lr = trial.suggest_float("policy_lr", 1e-6, 1e-2, log=True)
+        self.policy_kwargs["net_arch"] = [policy_width] * policy_depth
+        self.policy_optim_kwargs["lr"] = trial.suggest_float("policy_lr", 1e-6, 1e-2, log=True)
 
         vf_depth = trial.suggest_int("vf_depth", 2, 4)
         vf_width = trial.suggest_int("vf_width", 32, 1024)
-        self.vf_kwargs.net_arch = [vf_width] * vf_depth
-        self.vf_optim_kwargs.lr = trial.suggest_float("vf_lr", 1e-6, 1e-2, log=True)
+        self.vf_kwargs["net_arch"] = [vf_width] * vf_depth
+        self.vf_optim_kwargs["lr"] = trial.suggest_float("vf_lr", 1e-6, 1e-2, log=True)
 
 
 @dataclass
