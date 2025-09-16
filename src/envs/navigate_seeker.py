@@ -35,9 +35,7 @@ class NavigateSeekerEnv(SeekerEnv, SafeActionEnv):
     The safe action set is computed such that collisions with obstacles are avoided.
     """
     EVAL_ENVS: int = 6
-    COLLISION_PENALTY: float = 10.0
-    DISTANCE_PENALTY: float = 1.0
-    GOAL_REWARD: float = 100.0
+    DISTANCE_PENALTY: float = 2.0
 
     @jaxtyped(typechecker=beartype)
     def __init__(self,
@@ -109,7 +107,6 @@ class NavigateSeekerEnv(SeekerEnv, SafeActionEnv):
 
         self.collided = torch.zeros_like(self.collided)
         self.reached = torch.zeros_like(self.reached)
-        self.initial_goal_distance = torch.norm(self.goal - self.state[:, :2], dim=1)
 
         return self.observation, {}
 
@@ -212,15 +209,7 @@ class NavigateSeekerEnv(SeekerEnv, SafeActionEnv):
         Returns:
             Reward.
         """
-        goal_distance = torch.norm(self.goal - self.state, dim=1)
-        loss = -self.DISTANCE_PENALTY * goal_distance / self.initial_goal_distance
-        for obs in self.obstacles:
-            signed_distance = torch.norm(obs.center - self.state, dim=1) - obs.radius
-            threshold = obs.radius * 1.1
-            zero = torch.zeros_like(loss)
-            obstacle_loss = torch.max(zero, (torch.exp(-signed_distance / threshold) - 1 / torch.e) / (1 - 1 / torch.e))
-            loss = loss - obstacle_loss * self.COLLISION_PENALTY
-        return loss
+        return -self.DISTANCE_PENALTY * torch.norm(self.goal - self.state, dim=1)
 
     @jaxtyped(typechecker=beartype)
     def execute_action(self, action: Float[Tensor, "{self.num_envs} {self.action_dim}"]):

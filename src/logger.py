@@ -117,13 +117,15 @@ class Logger:
             eval_reward += reward.sum().item()
             steps += 1
 
-        self.log_data["eval/Average Reward"] = eval_reward / self.eval_env.num_envs / steps
+        avg_eval_reward = eval_reward  / self.eval_env.num_envs / steps
+
+        self.log_data["eval/Average Reward"] = avg_eval_reward
 
         if record and frames[0].numel() != 0:
             frames = torch.stack(frames).numpy()
             self.log_data["eval/Video"] = wandb.Video(frames, fps=60, format="mp4")
 
-        if eval_reward > self.best_reward:
-            self.best_reward = eval_reward
+        if avg_eval_reward > self.best_reward:
+            self.best_reward = avg_eval_reward
 
-        return eval_reward
+        return avg_eval_reward
