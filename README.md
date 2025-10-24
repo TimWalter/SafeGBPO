@@ -49,13 +49,14 @@ to properly see results ensure you are logged into weights and biases.
 If you consider our paper or code useful, please consider citing:
 
 ```kvk
-  @misc{walter2025leveraginganalyticgradientsprovably,
-      title={Leveraging Analytic Gradients in Provably Safe Reinforcement Learning}, 
-      author={Tim Walter and Hannah Markgraf and Jonathan Külz and Matthias Althoff},
-      year={2025},
-      eprint={2506.01665},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG},
-      url={https://arxiv.org/abs/2506.01665}, 
+@article{11154003,
+  author={Walter, Tim and Markgraf, Hannah and Külz, Jonathan and Althoff, Matthias},
+  journal={IEEE Open Journal of Control Systems}, 
+  title={Leveraging Analytic Gradients in Provably Safe Reinforcement Learning}, 
+  year={2025},
+  volume={4},
+  number={},
+  pages={463-481},
+  doi={10.1109/OJCSYS.2025.3607845}
 }
 ```
