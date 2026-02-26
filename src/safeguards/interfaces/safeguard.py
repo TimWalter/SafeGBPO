@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Optional
 
 import torch
 import cvxpy as cp
@@ -7,7 +7,7 @@ import numpy as np
 from torch import Tensor
 from beartype import beartype
 from jaxtyping import  Float, jaxtyped
-from gymnasium.vector import VectorActionWrapper
+from gymnasium.vector import VectorActionWrapper  # used to parallize the enviroments 
 
 import src.sets as sets
 from envs.simulators.interfaces.simulator import Simulator
@@ -27,12 +27,13 @@ class Safeguard(VectorActionWrapper, ABC):
     solver_args = {"solve_method": "Clarabel"}
 
     @jaxtyped(typechecker=beartype)
-    def __init__(self, env: SafeEnv, **kwargs):
+    def __init__(self, env: SafeEnv, regularisation_coefficient, **kwargs):
         """
         Args:
             env: A custom secured, pytorch-based environment.
         """
         super().__init__(env)
+        self.regularisation_coefficient = regularisation_coefficient
         self.batch_dim = self.env.num_envs
         self.state_dim = self.env.state_dim
         self.action_dim = self.env.action_dim
@@ -57,6 +58,7 @@ class Safeguard(VectorActionWrapper, ABC):
         self.interventions = 0
 
 
+
     @jaxtyped(typechecker=beartype)
     def actions(self, action: Float[Tensor, "{self.batch_dim} {self.action_dim}"]) \
             -> Float[Tensor, "{self.batch_dim} {self.action_dim}"]:
@@ -64,18 +66,21 @@ class Safeguard(VectorActionWrapper, ABC):
         # This is an overapproximation so it may not intersect
         projectable = self.env.state_set.intersects(reachable_set)
 
-        safe_action = torch.where(projectable.unsqueeze(1), action, self.safeguard(action))
-        if safe_action.isnan().any() or safe_action.isinf().any():
+        safe_action = torch.where(projectable.unsqueeze(1), self.safeguard(action), action)
+        nan_mask = safe_action.isnan().any(dim=1) | safe_action.isinf().any(dim=1)
+        bad_mask = projectable & nan_mask
+
+        if bad_mask.any():
             raise ValueError(f"""
-            Safe action are NaN. 
-            {self.env.state[projectable][safe_action.isnan().any(dim=1)]}
-            {action[projectable][safe_action.isnan().any(dim=1)]}
-            {self.env.state[projectable][safe_action.isinf().any(dim=1)]}
-            {action[projectable][safe_action.isinf().any(dim=1)]}
+            Safe action are NaN or Inf.
+            States: {self.env.state[bad_mask]}
+            Actions: {action[bad_mask]}
+            Safe actions: {safe_action[bad_mask]}
             """)
 
         self.safe_action = safe_action
-
+        self.initial_action = action
+        
         self.interventions += ((~torch.isclose(safe_action, action)).count_nonzero(dim=1) == self.action_dim).sum().item()
         return safe_action
 
@@ -95,6 +100,68 @@ class Safeguard(VectorActionWrapper, ABC):
         pass
 
     @jaxtyped(typechecker=beartype)
+    def regularisation(self,
+                        action: Float[Tensor, "buffer_size {self.batch_dim} {self.action_dim}"],
+                        safe_action: Float[Tensor, "buffer_size {self.batch_dim} {self.action_dim}"],
+                        **kwargs
+                        ) -> Float[Tensor, "..."]:
+        """
+        Compute the safeguard regularisation loss for the given action.
+
+        Args:
+            action: The action to compute the loss for.
+        Returns:
+            The safeguard regularisation loss.
+        """
+        return self.regularisation_coefficient * torch.nn.functional.mse_loss(safe_action, action)
+    
+    @jaxtyped(typechecker=beartype)
+    def safeguard_metrics(self, 
+                          safeguard_metrics_dict: Optional[dict[str, Any]] = None,
+                          safeguard_metrics_dict_training_only:  Optional[dict[str, Any]] = None,
+                          **kwargs
+                          ) -> dict[str, Any]:
+        """
+        Get metrics related to the safeguard.
+
+        Args:
+            safeguard_metrics_dict: A dictionary to store metrics.
+            safeguard_metrics_dict_training_only: A dictionary to store metrics only in training mode. 
+                                                    Useful for incorporating metrics into the loss function.
+            keyword arguments for compatibility
+        Returns:
+            A dictionary of metrics.
+        """
+
+        if safeguard_metrics_dict is None:
+            safeguard_metrics_dict = {}
+
+        if safeguard_metrics_dict_training_only is None:
+            safeguard_metrics_dict_training_only = {}
+
+        if torch.is_grad_enabled(): # in training mode we do not store metrics
+            return safeguard_metrics_dict_training_only
+
+        def compute_generic_constraint_violation(phase, action,metrics_dict: dict[str, Any] = {}):
+            data = self.safe_action_set()
+            data.setup_constraints()
+            processed_action = data.pre_process_action(action)
+            metrics_dict[f"{phase}_eq_violation"] = data.equality_constraint_violation(None, processed_action).square().sum(dim=1)
+            metrics_dict[f"{phase}_ineq_violation"] = data.inequality_constraint_violation(None, processed_action).square().sum(dim=1)
+            metrics_dict[f"{phase}_constraint_violation"] = metrics_dict[f"{phase}_eq_violation"] + metrics_dict[f"{phase}_ineq_violation"]
+            return metrics_dict
+        
+        
+        if not "pre_eq_violation" in safeguard_metrics_dict and not "pre_ineq_violation" in safeguard_metrics_dict:
+            safeguard_metrics_dict = compute_generic_constraint_violation("pre", self.initial_action, safeguard_metrics_dict)
+        if not "post_eq_violation" in safeguard_metrics_dict and not "post_ineq_violation" in safeguard_metrics_dict:
+            safeguard_metrics_dict = compute_generic_constraint_violation("post", self.safe_action, safeguard_metrics_dict)
+        safeguard_metrics_dict["projection_distance"] = torch.nn.functional.mse_loss(self.safe_action, self.initial_action)
+
+        return safeguard_metrics_dict
+    
+
+    @jaxtyped(typechecker=beartype)
     def linear_step(self,action: cp.Expression | np.ndarray) \
             -> tuple[cp.Expression | np.ndarray, np.ndarray, list[cp.Parameter]]:
         """
@@ -108,6 +175,7 @@ class Safeguard(VectorActionWrapper, ABC):
         Returns:
             The next state center, generator and the parameters.
         """
+
         constant_mat = cp.Parameter(self.state_dim)
         action_mat = cp.Parameter((self.state_dim, self.action_dim))
         noise_mat = self.noise_mat[0].cpu().numpy()
@@ -133,6 +201,7 @@ class Safeguard(VectorActionWrapper, ABC):
         Returns:
             list: The constraints.
         """
+        
         return [
             self.env.action_set.min[0, :].cpu().numpy() <= action,
             self.env.action_set.max[0, :].cpu().numpy() >= action,
@@ -156,13 +225,13 @@ class Safeguard(VectorActionWrapper, ABC):
         safe_action_center = cp.Parameter(self.action_dim)
         safe_action_generator = cp.Parameter((self.action_dim, self.safe_action_gens))
 
-        if generator is None:
+        if generator is None: 
             constraints = sets.Zonotope.point_containment_constraints(
                 center,
                 safe_action_center,
                 safe_action_generator
             )
-        else:
+        else: 
             constraints = sets.Zonotope.zonotope_containment_constraints(
                 center,
                 generator,
@@ -183,6 +252,7 @@ class Safeguard(VectorActionWrapper, ABC):
         Returns:
             The constraints and parameters.
         """
+
         safe_state_center = cp.Parameter(self.state_dim)
         safe_state_generator = cp.Parameter((self.state_dim, self.safe_state_gens))
 

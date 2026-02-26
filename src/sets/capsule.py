@@ -134,6 +134,9 @@ class Capsule(ConvexSet):
         elif isinstance(other, sets.Zonotope):
             # Over approximation of the zonotope by a box to lower computational complexity
             return self.contains(other.box())
+        elif isinstance(other, sets.Polytope):
+            raise NotImplementedError(
+                f"Intersection check not implemented for {type(other)}")
         else:
             raise NotImplementedError(
                 f"Containment check not implemented for {type(other)}")
@@ -149,7 +152,7 @@ class Capsule(ConvexSet):
         Returns:
             True if other intersects with the capsule, False otherwise.
         """
-        import src.sets as sets
+        import sets as sets
 
         if isinstance(other, sets.Ball):
             return other.intersects(self)
@@ -274,3 +277,6 @@ class Capsule(ConvexSet):
 
         return self.start + s1.unsqueeze(1) * (self.end - self.start), \
                start + s2.unsqueeze(1) * (end - start)
+
+    def setup_constraints(self):
+        raise NotImplementedError("Linear constraint matrices not defined for Ball.")

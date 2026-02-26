@@ -150,3 +150,10 @@ class Ball(ConvexSet):
             support = (direction.unsqueeze(2) * other.generator).sum(dim=1).abs().sum(
                 dim=1)
             return self.intersects(other.box()) & (distance <= support + self.radius)
+        
+        elif isinstance(other, sets.Polytope):
+            raise NotImplementedError(
+                f"Intersection check not implemented for {type(other)}")
+
+    def setup_constraints(self):
+        raise NotImplementedError("Linear constraint matrices not defined for Ball.")

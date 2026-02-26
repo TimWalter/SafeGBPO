@@ -32,6 +32,7 @@ class RayMaskSafeguard(Safeguard):
     @jaxtyped(typechecker=beartype)
     def __init__(self,
                  env: SafeEnv,
+                 regularisation_coefficient: float,
                  linear_projection: bool,
                  zonotopic_approximation: bool,
                  passthrough: bool,
@@ -43,7 +44,7 @@ class RayMaskSafeguard(Safeguard):
             zonotopic_approximation: Whether to use zonotopic approximation.
             passthrough: Whether to use passthrough gradients
         """
-        super().__init__(env)
+        super().__init__(env, regularisation_coefficient)
         self.linear_projection = linear_projection
         if passthrough:
             self.prev_action = self.actions
@@ -58,7 +59,7 @@ class RayMaskSafeguard(Safeguard):
         self.zonotope_distance_layer = None
         self.boundary_projection_safeguard = None
         self.implicit_zonotope_distance_layer = None
-
+    
     @jaxtyped(typechecker=beartype)
     def safeguard(self, action: Float[Tensor, "{self.batch_dim} {self.action_dim}"]) \
             -> Float[Tensor, "{self.batch_dim} {self.action_dim}"]:
@@ -71,6 +72,7 @@ class RayMaskSafeguard(Safeguard):
         Returns:
             The safeguarded action.
         """
+
         if self.state_constrained:
             safe_center, safe_dist, feasible_dist = self.distance_approximations(action)
         else:
@@ -80,12 +82,14 @@ class RayMaskSafeguard(Safeguard):
         action_dist = torch.linalg.vector_norm(action - safe_center, dim=1, ord=2, keepdim=True)
         directions = (action - safe_center) / (action_dist + 1e-8)
 
-        central = action_dist < 1e-8
+        central = action_dist < 1e-8  
+
         safe_action = torch.where(
             central,
             safe_center,
             safe_center + directions * self.radial_mapping(action_dist, safe_dist, feasible_dist)
         )
+
         return safe_action
 
     @jaxtyped(typechecker=beartype)
@@ -106,7 +110,7 @@ class RayMaskSafeguard(Safeguard):
             The radial mapping
         """
         if self.linear_projection:
-            mapping = action_dist / safe_dist
+            mapping = action_dist / feasible_dist
         else:
             mapping = torch.tanh(action_dist / safe_dist) / torch.tanh(feasible_dist / safe_dist)
 
@@ -271,7 +275,7 @@ class RayMaskSafeguard(Safeguard):
         Float[Tensor, "{self.batch_dim} 1"],
     ]:
         if self.boundary_projection_safeguard is None:
-            self.boundary_projection_safeguard = BoundaryProjectionSafeguard(self.env)
+            self.boundary_projection_safeguard = BoundaryProjectionSafeguard(self.env, self.regularisation_coefficient)
         if self.implicit_zonotope_distance_layer is None:
             direction = cp.Parameter(self.action_dim)
             starting_point = cp.Parameter(self.action_dim)

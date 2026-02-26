@@ -128,6 +128,7 @@ class Zonotope(ConvexSet):
         Returns:
             The constraints for the zonotope-zonotope containment problem.
         """
+
         weights = cp.Variable(g2.shape[1])
         mapping = cp.Variable((g2.shape[1], g1.shape[1]))
 
@@ -260,6 +261,9 @@ class Zonotope(ConvexSet):
         elif isinstance(other, sets.Zonotope):
             # Overapproximation
             return self.box().intersects(other.box())
+        elif isinstance(other, sets.Polytope):
+            raise NotImplementedError(
+                f"Intersection check not implemented for {type(other)}")
         else:
             raise NotImplementedError(
                 f"Intersection check not implemented for {type(other)}")
@@ -307,3 +311,68 @@ class Zonotope(ConvexSet):
         vert = torch.hstack([vert, lower_half])
 
         return self.center[0].unsqueeze(1) + vert
+
+
+    def setup_constraints(self):
+        """
+        Setup the residuals for FSNet solver interface.
+        Constructs the A, b, C, d  constraint matrices for the zonotope representation.
+        specifically the point containment in the zonotope Z = { x | x = c + Gβ , ||β||∞ <= 1 }
+        where c is the center, G is the generator matrix, and β are the generator coefficients.
+        
+        The equality constraints are Cz = d with z = [y; β] and c is the center of the zonotope
+        The inequality constraints are Az <= b with z = [y; β] and b is the box constraints on β.
+
+        """
+
+        batch_dim, dim, num_generators = self.generator.shape
+
+        # for eq constraints Cz = d
+        # C with shape (batch_dim, dim, dim + num_generators)
+        # d with shape (batch_dim, dim, 1)
+        
+        self.C = torch.cat([
+                torch.eye(dim).expand(batch_dim, dim, dim), 
+                -self.generator
+            ], dim=2).detach() 
+        
+        self.d = self.center.detach() 
+
+        # for ineq constraints  Az <= b
+        # A with shape (batch_dim, 2 * num_generators, dim + num_generators)
+        # b with shape (batch_dim, 2 * num_generators, 1)
+
+        A_half = torch.cat([
+                torch.zeros((batch_dim, num_generators, dim)),
+                torch.eye(num_generators).expand(batch_dim, num_generators, num_generators)
+            ], dim=2)
+        
+        self.A = torch.cat([A_half, -A_half], dim=1).detach()  
+        self.b = torch.ones((batch_dim, 2 * num_generators)).detach()  
+
+    def pre_process_action(self, action):
+        """
+        
+        Pre-process the action to fit the zonotope representation. 
+        z = [a; gamma], where a is the action and gamma are the generator coefficients.
+        z has shape (batch_size, dim + num_generators)
+        Args:
+            action: The action to pre-process.
+        Returns:
+                The pre-processed action.
+            """
+        batch_dim, _, num_generators = self.generator.shape
+        z = torch.nn.functional.pad(action, (0, num_generators)) # to allow for backpropagation through actions outside the zonotope
+        return z
+    
+    def post_process_action(self, action):
+        """
+        Post-process the action to extract the original action from the zonotope representation.
+        z = [a; gamma], where a is the action and gamma are the generator coefficients
+        Args:
+            action: The action to post-process.
+        Returns:
+            The post-processed action.
+        """
+        return action[:, :self.dim]
+    

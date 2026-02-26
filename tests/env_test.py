@@ -74,7 +74,8 @@ def test_navigate_quadrotor():
                    num_obstacles=1,
                    min_radius=1.0,
                    max_radius=2.0,
-                   draw_safe_state_set=True)
+                   draw_safe_state_set=True,
+                   )
 
 
 def test_navigate_seeker():
@@ -82,7 +83,9 @@ def test_navigate_seeker():
                    num_obstacles=1,
                    min_radius=1.0,
                    max_radius=2.0,
-                   draw_safe_action_set=True)
+                   draw_safe_action_set=True,
+                   polytopic_approach=False,
+                   )
 
 
 def test_swingup_cartpole():

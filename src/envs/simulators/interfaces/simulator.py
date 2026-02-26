@@ -9,7 +9,6 @@ from jaxtyping import Float, Bool, jaxtyped
 
 import src.sets as sets
 
-
 class Simulator(ABC, VectorEnv):
     """
     Base class for vectorized torch environments.

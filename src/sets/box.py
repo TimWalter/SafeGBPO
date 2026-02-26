@@ -152,6 +152,11 @@ class Box(Zonotope):
                 dim=1).abs().sum(dim=1)
             return (projection_len <= self.edge_len + supports).all(dim=1) & \
                 (other_projection_len <= other_edge_len + other_supports).all(dim=1)
+
+        elif isinstance(other, sets.Polytope):
+            raise NotImplementedError(
+                f"Intersection check not implemented for {type(other)}")
+
         else:
             raise NotImplementedError(
                 f"Intersection check not implemented for {type(other)}")

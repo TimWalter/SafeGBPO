@@ -1,4 +1,4 @@
-from typing import Optional, Any
+from typing import Optional, Any, Union
 
 import torch
 import cvxpy as cp
@@ -44,7 +44,8 @@ class NavigateSeekerEnv(SeekerEnv, SafeActionEnv):
                  num_obstacles: int,
                  min_radius: float,
                  max_radius: float,
-                 draw_safe_action_set: bool
+                 draw_safe_action_set: bool,
+                 safe_action_polytope: bool,
                  ):
         """
         Initialize the NavigateSeekerEnv.
@@ -71,6 +72,7 @@ class NavigateSeekerEnv(SeekerEnv, SafeActionEnv):
         self.min_radius = min_radius
         self.max_radius = max_radius
         self.draw_safe_action_set = draw_safe_action_set
+        self.safe_action_polytope = safe_action_polytope
 
         self.obstacles: list[sets.Ball] = [sets.Ball(torch.empty((num_envs, 2)), torch.empty(num_envs)) for _ in
                                            range(num_obstacles)]
@@ -82,9 +84,14 @@ class NavigateSeekerEnv(SeekerEnv, SafeActionEnv):
         self.reached = torch.zeros(self.num_envs, dtype=torch.bool)
 
         self.generator_layer = None
-        self.last_safe_action_set: sets.Zonotope = sets.Zonotope(torch.zeros(self.num_envs, self.state_dim),
-                                                                 torch.zeros(self.num_envs, self.state_dim,
-                                                                             self.num_action_gens))
+
+        if not self.safe_action_polytope:
+            self.last_safe_action_set: sets.Zonotope = sets.Zonotope(torch.zeros(self.num_envs, self.state_dim),
+                                                                     torch.zeros(self.num_envs, self.state_dim,
+                                                                                 self.num_action_gens))
+        else:
+            self.last_safe_action_set: sets.Polytope = sets.Polytope(A=torch.zeros(self.num_envs, self.state_dim, self.state_dim),
+                                                                     b=torch.zeros(self.num_envs, self.state_dim))
 
     @jaxtyped(typechecker=beartype)
     def reset(self, seed: Optional[int] = None) -> tuple[
@@ -340,6 +347,7 @@ class NavigateSeekerEnv(SeekerEnv, SafeActionEnv):
     def render(self) -> list[Tensor]:
         """
         Render all environments.
+        For every action -> render is called.
 
         Returns:
             A list of rendered frames for each environment.
@@ -348,6 +356,11 @@ class NavigateSeekerEnv(SeekerEnv, SafeActionEnv):
         goal = self.goal.detach().cpu()
 
         frames = []
+
+        # Restart the safe set
+        if self.draw_safe_action_set:
+            self.safe_action_set()
+
         for i in range(self.num_envs):
             img, draw = self.draw_seeker(state[i], goal[i])
 
@@ -368,20 +381,23 @@ class NavigateSeekerEnv(SeekerEnv, SafeActionEnv):
                              fill=(0, 0, 0))
 
             if self.draw_safe_action_set:
-                if self.last_safe_action_set.generator.sum() == 0:
-                    self.safe_action_set()
-
                 overlay = Image.new("RGBA", img.size, (255, 255, 255, 0))
                 overlay_draw = ImageDraw.Draw(overlay)
-
-                draw_set = sets.Zonotope(self.last_safe_action_set.center[i:i + 1, :] + self.state[i:i + 1, :],
-                                         self.last_safe_action_set.generator[i:i + 1, :, :])
-                vertices = draw_set.vertices().cpu().numpy()
+                
+                if self.safe_action_polytope:
+                    draw_set = sets.Polytope(A = self.last_safe_action_set.A[i].unsqueeze(0),
+                                            b = (self.last_safe_action_set.b[i] + torch.matmul(self.last_safe_action_set.A[i], self.state[i])).unsqueeze(0))
+                else:
+                    draw_set = sets.Zonotope(self.last_safe_action_set.center[i:i + 1, :] + self.state[i:i + 1, :],
+                                            self.last_safe_action_set.generator[i:i + 1, :, :])
+                
+                vertices = draw_set.vertices().cpu().detach().numpy()
 
                 screen_vertices = [
                     (v[0] * scale + offset_x, -v[1] * scale + offset_y)
                     for v in vertices.T
                 ]
+                
                 color = (255, 0, 0, 64)
                 overlay_draw.polygon(screen_vertices, fill=color)
 
@@ -389,13 +405,12 @@ class NavigateSeekerEnv(SeekerEnv, SafeActionEnv):
 
             frames.append((to_tensor(img) * 255).to(torch.uint8))
 
-        # invalidate the cached safe state set
-        self.last_safe_action_set.generator *= 0.0
-
         return frames
 
+
+
     @jaxtyped(typechecker=beartype)
-    def safe_action_set(self) -> sets.Zonotope:
+    def safe_action_set(self) -> Union[sets.Zonotope, sets.Polytope]:
         """
         Get the safe action set for the current state.
 
@@ -406,8 +421,12 @@ class NavigateSeekerEnv(SeekerEnv, SafeActionEnv):
             Cache the result if it is expensive to compute.
         """
         with torch.no_grad():
-            generator = self.compute_generator()
-            self.last_safe_action_set = sets.Zonotope(self.action_set.center, generator)
+            if self.safe_action_polytope:
+                A, b = self.compute_polytope_generator()
+                self.last_safe_action_set = sets.Polytope(A=A, b=b)
+            else:
+                generator = self.compute_generator()
+                self.last_safe_action_set = sets.Zonotope(self.action_set.center, generator)
 
             return self.last_safe_action_set
 
@@ -475,3 +494,81 @@ class NavigateSeekerEnv(SeekerEnv, SafeActionEnv):
 
         length = self.generator_layer(*parameters, solver_args={"solve_method": "Clarabel"})[0]
         return unscaled_generator * length.unsqueeze(1)
+
+    @jaxtyped(typechecker=beartype)
+    def compute_polytope_generator(
+        self
+    ) -> tuple[Float[Tensor, "batch_dim num_constraints dim"], Float[Tensor, "batch_dim num_constraints"]]:
+        """
+        Compute the safe input set polytope for a batch of environments based on acorl repo (envs.constraints.seeker.compute_relevant_input_set()).
+        Returns A, b for each batch: { x | A x <= b }.
+        """
+        batch = self.num_envs
+        dim = self.state_dim
+        asi = self.action_set.generator[0].diag()
+
+        agent_pos = self.state
+        noise = self.noise_set.sample()
+        
+        # Boundary constraints
+        boundary_size = (self.state_set.max - self.state_set.min) / 2
+        b_upper = boundary_size - agent_pos
+        b_lower = boundary_size + agent_pos
+        b_boundary = torch.cat([b_upper, b_lower], dim=1)
+
+        I = torch.eye(dim, device=self.state.device)
+        A_boundary_single = torch.cat([I, -I], dim=0)
+        A_boundary = A_boundary_single.unsqueeze(0).repeat(batch, 1, 1)
+
+        # Action constraints
+        b_action = torch.cat([asi, asi], dim=0).unsqueeze(0).repeat(batch, 1)
+        A_action_single = torch.cat([-I, I], dim=0)
+        A_action = A_action_single.unsqueeze(0).repeat(batch, 1, 1)
+
+        # Combine fixed constraints
+        b_fixed = torch.cat([b_boundary, b_action], dim=1)
+        A_fixed = torch.cat([A_boundary, A_action], dim=1)
+
+        # Obstacle constraints
+        max_obs_constraints = self.obstacle_centers.tensor.shape[0]
+        total_constraints = 4*dim + max_obs_constraints
+
+        A_padded = torch.zeros(batch, total_constraints, dim, device=self.state.device)
+        b_padded = torch.full((batch, total_constraints), float('inf'), device=self.state.device)
+
+        A_padded[:, :4*dim, :] = A_fixed
+        b_padded[:, :4*dim] = b_fixed
+        threshold = (torch.sqrt(torch.tensor(dim, device=self.state.device)) * (asi[0] + noise[:, 0]))
+
+        B, D = agent_pos.shape
+        centers = self.obstacle_centers.tensor.permute(1, 0, 2)
+        radii = self.obstacle_radii.tensor.permute(1, 0)
+
+        # Distance to obstacle
+        agent = agent_pos[:, None, :] 
+        a = centers - agent
+        norm_a = torch.linalg.norm(a, dim=-1, keepdim=True)
+        dist = torch.linalg.norm(a, dim=-1)
+        a_normalized = torch.zeros_like(a)
+        valid = norm_a > 1e-8
+        a_normalized[valid.expand_as(a)] = (a / norm_a)[valid.expand_as(a)]
+
+        # Threshold condition
+        # far_mask = True means obstacle is too far and should be skipped
+        far_mask = (dist - radii) > threshold[:, None]
+        near_mask = ~far_mask
+
+        b_val = dist - radii - noise[:, 0:1]
+
+        A_obs = torch.zeros((B, max_obs_constraints, D), device=agent_pos.device, dtype=agent_pos.dtype)
+        b_obs = torch.full((B, max_obs_constraints), float('inf'), device=agent_pos.device, dtype=agent_pos.dtype)
+
+        A_obs[near_mask] = a_normalized[near_mask]
+        b_obs[near_mask] = b_val[near_mask]
+
+        start = 4 * dim
+        end = start + max_obs_constraints
+        A_padded[:, start:end, :] = A_obs
+        b_padded[:, start:end] = b_obs
+
+        return A_padded, b_padded

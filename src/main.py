@@ -4,7 +4,9 @@ from typing import Optional
 
 import torch
 import wandb
-import optuna
+import optuna # used to train the hyperparameters
+from pathlib import Path
+import copy
 
 from logger import Logger
 from utils import categorise_run, import_module, gather_custom_modules
@@ -13,12 +15,14 @@ from conf.experiment import Experiment
 torch.set_default_device("cuda" if torch.cuda.is_available() else "cpu")
 torch.set_default_dtype(torch.float64)
 
-
 def run_experiment(cfg: Experiment, trial: Optional[optuna.Trial] = None) -> float:
+    cfg = copy.deepcopy(cfg)
     if trial is not None:
         cfg.learning_algorithm.vary(trial, cfg)
 
     group, tags = categorise_run(cfg)
+
+    # ----------------- LOGGER -------------------------
 
     run = wandb.init(project="Leveraging Analytical Gradients in Provably Safe Reinforcement Learning",
                      config=asdict(cfg),
@@ -32,6 +36,9 @@ def run_experiment(cfg: Experiment, trial: Optional[optuna.Trial] = None) -> flo
 
     run.config["config"] = asdict(cfg)
 
+    # ---------------------------------------------------------
+
+
     modules = gather_custom_modules(Path(__file__).parent / "envs", "Env")
     modules |= gather_custom_modules(Path(__file__).parent / "safeguards", "Safeguard")
     modules |= gather_custom_modules(Path(__file__).parent / "learning_algorithms", "LearningAlgorithm")
@@ -42,17 +49,23 @@ def run_experiment(cfg: Experiment, trial: Optional[optuna.Trial] = None) -> flo
     eval_env = env_class(**asdict(cfg.env))
 
     if cfg.safeguard:
+        print("Model: ", cfg.safeguard.name)
         safeguard_class = import_module(modules, cfg.safeguard.name + "Safeguard")
         env = safeguard_class(env, **asdict(cfg.safeguard))
         eval_env = safeguard_class(eval_env, **asdict(cfg.safeguard))
 
     agent = import_module(modules, cfg.learning_algorithm.name)(**vars(cfg.learning_algorithm), env=env)
+    # ----------------- LOGGER -------------------------
     logger = Logger(agent, env, eval_env, run, trial, cfg.eval_freq, cfg.fast_eval)
-    agent.learn(interactions=cfg.interactions, logger=logger)
+    # ---------------------------------------------------------
 
+    agent.learn(interactions=cfg.interactions, logger = logger)
+
+    # ----------------- LOGGER -------------------------
     run.finish()
+    # ---------------------------------------------------------
 
-    return logger.best_reward
+    return logger.best_reward, run.id
 
 
 if __name__ == "__main__":
@@ -65,9 +78,41 @@ if __name__ == "__main__":
     experiment_queue = [
         Experiment(num_runs=1,
                    learning_algorithm=SHACConfig(),
-                   env=BalanceQuadrotorConfig(),
-                   safeguard=RayMaskConfig(zonotopic_approximation=False),
-                   interactions=15_000,
+                   env=NavigateSeekerConfig(),
+                   safeguard=None,
+                   interactions=100_000,
+                   eval_freq=5_000,
+                   fast_eval=False),
+
+        Experiment(num_runs=1,
+                   learning_algorithm=SHACConfig(),
+                   env=NavigateSeekerConfig(),
+                   safeguard=BoundaryProjectionConfig(),
+                   interactions=100_000,
+                   eval_freq=5_000,
+                   fast_eval=False),
+
+        Experiment(num_runs=1,
+                   learning_algorithm=SHACConfig(),
+                   env=NavigateSeekerConfig(),
+                   safeguard=RayMaskConfig(),
+                   interactions=100_000,
+                   eval_freq=5_000,
+                   fast_eval=False),
+        
+        Experiment(num_runs=1,
+                   learning_algorithm=SHACConfig(),
+                   env=NavigateSeekerConfig(safe_action_polytope=True),
+                   safeguard=FSNetConfig(),
+                   interactions=100_000,
+                   eval_freq=5_000,
+                   fast_eval=False),
+
+        Experiment(num_runs=1,
+                   learning_algorithm=SHACConfig(),
+                   env=NavigateSeekerConfig(safe_action_polytope=True),
+                   safeguard=PinetConfig(n_iter_admm=100, n_iter_bwd=5, fpi=True),
+                   interactions=100_000,
                    eval_freq=5_000,
                    fast_eval=False),
     ]
@@ -75,7 +120,6 @@ if __name__ == "__main__":
     for i, experiment in enumerate(experiment_queue):
         if experiment.num_runs == 0:
             print("[STATUS] Running hyperparameter search")
-
             study = optuna.create_study(direction="maximize",
                                         sampler=optuna.samplers.TPESampler(),
                                         pruner=optuna.pruners.HyperbandPruner(),
@@ -89,4 +133,6 @@ if __name__ == "__main__":
         else:
             print(f"[STATUS] Running experiment [{i + 1}/{len(experiment_queue)}]")
             for j in range(experiment.num_runs):
-                run_experiment(experiment)
+                print(f"  → Run {j + 1}/{experiment.num_runs}")
+
+                _, run_id = run_experiment(experiment)

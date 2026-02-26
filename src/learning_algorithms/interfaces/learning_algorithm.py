@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 import torch
 from beartype import beartype
 from jaxtyping import jaxtyped
+from tqdm import tqdm
+from torch import Tensor
 
 from learning_algorithms.components.value_function import ValueFunction
 from src.learning_algorithms.components.policy import Policy
@@ -14,6 +16,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from src.logger import Logger
 
+from tqdm import tqdm
 
 class LearningAlgorithm(ABC):
     """
@@ -64,6 +67,7 @@ class LearningAlgorithm(ABC):
             interactions: The number of environment interactions to use for learning.
             logger: The logger to use for logging learning progress.
         """
+
         num_learn_episodes = interactions // self.interactions_per_episode
 
         policy_lr_update = 0
@@ -73,7 +77,7 @@ class LearningAlgorithm(ABC):
         if self.VF_LEARNING_RATE_SCHEDULE == "linear":
             vf_lr_update = (1e-5 - self.value_function_optim.param_groups[0]["lr"]) / num_learn_episodes
 
-        for eps in range(num_learn_episodes):
+        for eps in tqdm(range(num_learn_episodes), desc="Learning", unit="episodes"):
             average_reward, policy_loss, value_loss = self._learn_episode(eps)
 
             for param_group in self.policy_optim.param_groups:
@@ -81,8 +85,9 @@ class LearningAlgorithm(ABC):
             for param_group in self.value_function_optim.param_groups:
                 param_group["lr"] += vf_lr_update
 
+            additional_metrics = self._learn_episode_additional_metrics()
             with torch.no_grad():
-                logger.on_learning_episode(eps, average_reward, policy_loss, value_loss, num_learn_episodes)
+                logger.on_learning_episode(eps, average_reward, policy_loss, value_loss, num_learn_episodes, additional_metrics=additional_metrics)
 
     @jaxtyped(typechecker=beartype)
     @abstractmethod
@@ -97,3 +102,15 @@ class LearningAlgorithm(ABC):
             Average reward, policy loss, and value loss for the episode.
         """
         pass
+
+    @jaxtyped(typechecker=beartype)
+    def _learn_episode_additional_metrics(self) -> dict[str, Tensor]:
+        """
+        Get metrics for the learning algorithm. 
+        If the learning algorithm has no additional metrics, return an empty dictionary.
+
+        Returns:
+            A dictionary of metrics.
+        """
+        return dict(getattr(self, '_last_episode_additional_metrics', {}))
+    

@@ -50,6 +50,12 @@ def categorise_run(cfg: Experiment) -> tuple[str, list[str]]:
             if cfg.safeguard.passthrough:
                 group += "(PT)"
                 tags += ["Passthrough"]
+        elif cfg.safeguard.name == "FSNet":
+            group += "FSNet"
+            tags += ["FSNet"]
+        elif cfg.safeguard.name == "Pinet":
+            group += "Pinet"
+            tags += ["Pinet"]
         if cfg.safeguard.regularisation_coefficient > 0:
             group += "(Reg)"
             tags += ["Regularised"]
