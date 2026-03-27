@@ -19,7 +19,7 @@ torch.set_default_dtype(torch.float64)
 
 
 def render_grid(env):
-    grid = vutils.make_grid(torch.stack(env.render()) * 255, nrow=int(torch.sqrt(torch.tensor([env.num_envs]))))
+    grid = vutils.make_grid(torch.stack(env.render()), nrow=int(torch.sqrt(torch.tensor([env.num_envs]))))
     return grid.permute(1, 2, 0).to(torch.uint8).numpy()
 
 
@@ -34,7 +34,7 @@ def simulator_test(env_class, **kwargs):
         obs, reward, termination, truncation, info = env.step(generic_action)
         frames.append(render_grid(env))
     env.close()
-    imageio.mimsave(f"{env_class.__name__}.mp4", frames, fps=5)
+    imageio.mimsave(f"{env_class.__name__}.mp4", frames, fps=10)
 
 
 def test_pendulum():
@@ -84,7 +84,6 @@ def test_navigate_seeker():
                    min_radius=1.0,
                    max_radius=2.0,
                    draw_safe_action_set=True,
-                   polytopic_approach=False,
                    )
 
 

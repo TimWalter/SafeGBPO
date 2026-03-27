@@ -380,11 +380,17 @@ class NavigateSeekerEnv(SeekerEnv, SafeActionEnv):
                 draw_set = sets.Zonotope(self.last_safe_action_set.center[i:i + 1, :] + self.state[i:i + 1, :],
                                          self.last_safe_action_set.generator[i:i + 1, :, :])
 
-                vertices = draw_set.vertices().cpu().detach().numpy()
+                vertices = draw_set.to_vertices().cpu().detach()[:, 0]
+                center = vertices.mean(dim=0)
+                angles = torch.atan2(
+                    vertices[:, 1] - center[1],
+                    vertices[:, 0] - center[0]
+                )
+                vertices = vertices[torch.argsort(angles, dim=0)].numpy()
 
                 screen_vertices = [
                     (v[0] * scale + offset_x, -v[1] * scale + offset_y)
-                    for v in vertices.T
+                    for v in vertices
                 ]
 
                 color = (255, 0, 0, 64)

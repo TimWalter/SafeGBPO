@@ -246,12 +246,12 @@ class SeekerEnv(Simulator):
 
         draw.ellipse(
             (screen_goal_x - radius, screen_goal_y - radius, screen_goal_x + radius, screen_goal_y + radius),
-            fill=(0, 255, 0), outline="black"
+            fill=(0, 255, 0)
         )
 
         draw.ellipse(
             (screen_agent_x - radius, screen_agent_y - radius, screen_agent_x + radius, screen_agent_y + radius),
-            fill=(255, 0, 0), outline="black"
+            fill=(255, 0, 0)
         )
 
         return img, draw
