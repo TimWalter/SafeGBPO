@@ -10,7 +10,7 @@ from cvxpylayers.torch import CvxpyLayer
 from jaxtyping import jaxtyped, Float, Bool
 from torchvision.transforms.functional import to_tensor
 
-import src.sets as sets
+import sets
 from envs.simulators.quadrotor import QuadrotorEnv
 from envs.interfaces.safe_state_env import SafeStateEnv
 from src.learning_algorithms.components.coupled_tensor import CoupledTensor
@@ -161,7 +161,7 @@ class NavigateQuadrotorEnv(QuadrotorEnv, SafeStateEnv):
             i: Index of the obstacle to sample.
             obstructing: A boolean tensor indicating which environments should sample a new obstacle.
         """
-        sample = self.additional_observation_set.sample()
+        sample = self.additional_observation_set.sample(1)[0]
         if i == 0:
             ray = (self.goal - self.state[:, :2]) / torch.norm(self.goal - self.state[:, :2], dim=1, keepdim=True)
             normal_ray = torch.zeros_like(ray)
@@ -189,8 +189,8 @@ class NavigateQuadrotorEnv(QuadrotorEnv, SafeStateEnv):
             A boolean tensor indicating which environments have the i-th obstacle obstructing.
         """
 
-        obstructing = self.obstacles[i].contains(self.state[:, :2])
-        obstructing |= self.obstacles[i].contains(self.goal)
+        obstructing = self.obstacles[i].contains(self.state[:, :2].unsqueeze(0))[0]
+        obstructing |= self.obstacles[i].contains(self.goal.unsqueeze(0))[0]
         for other in self.obstacles[:i]:
             obstructing |= self.obstacles[i].intersects(other)
         return obstructing
@@ -243,7 +243,7 @@ class NavigateQuadrotorEnv(QuadrotorEnv, SafeStateEnv):
         Args:
             action: Action to execute in the environment.
         """
-        free_state = self.dynamics(self.state, action, self.noise_set.sample())
+        free_state = self.dynamics(self.state, action, self.noise_set.sample(1)[0])
         if self.num_obstacles:
             self.collided = self.collision_check(free_state)
             if self.collided.any():
@@ -268,7 +268,7 @@ class NavigateQuadrotorEnv(QuadrotorEnv, SafeStateEnv):
         """
         collided = torch.zeros_like(self.collided)
         for i in range(len(self.obstacles)):
-            collided[:, i] = self.obstacles[i].contains(state[:, :2])
+            collided[:, i] = self.obstacles[i].contains(state[:, :2].unsqueeze(0))[0]
         return collided
 
     @jaxtyped(typechecker=beartype)
@@ -508,7 +508,7 @@ class NavigateQuadrotorEnv(QuadrotorEnv, SafeStateEnv):
         direction[too_low] = -self.state_set.min[too_low]
         direction[too_high] = -self.state_set.max[too_high]
 
-        center = torch.where(~self.state_set.contains(reachable_set.center).unsqueeze(1),
+        center = torch.where(~self.state_set.contains(reachable_set.center.unsqueeze(0))[0].unsqueeze(1),
                              self.compute_support_point(reachable_set, direction),
                              reachable_set.center)
         return center

@@ -30,7 +30,6 @@ class SHAC(LearningAlgorithm):
                  policy_optim_kwargs: dict,
                  vf_kwargs: dict,
                  vf_optim_kwargs: dict,
-                 regularisation_coefficient: float,
                  len_trajectories: int,
                  polyak_target: float = 0.995,
                  td_weight: float = 0.95,
@@ -46,15 +45,13 @@ class SHAC(LearningAlgorithm):
             policy_optim_kwargs: The keyword arguments for the policy optimizer.
             vf_kwargs: The keyword arguments for the value function network.
             vf_optim_kwargs: The keyword arguments for the value function optimizer.
-            regularisation_coefficient: Regularisation coefficient for the regularisation towards safe actions.
             len_trajectories: Length of trajectories to collect.
             polyak_target: The soft update coefficient for the target value function.
             td_weight: The soft update coefficient for the estimated state value.
             vf_num_fits: Number of gradient steps to take on the value function per learning episode.
             vf_fit_num_batches: Number of batches to split the trajectory for value function fitting into.
         """
-        super().__init__(env, policy_kwargs, policy_optim_kwargs, vf_kwargs, vf_optim_kwargs,
-                         regularisation_coefficient, False)
+        super().__init__(env, policy_kwargs, policy_optim_kwargs, vf_kwargs, vf_optim_kwargs, False)
 
         self.len_trajectories = len_trajectories
         self.polyak_target = polyak_target
@@ -90,7 +87,6 @@ class SHAC(LearningAlgorithm):
         policy_loss = self.update_policy()
         value_loss = self.update_value_function()
         self.update_target_value_function()
-        self._last_episode_additional_metrics = self.buffer.aggregate_additional_metrics()
         return average_reward, policy_loss, value_loss
 
     @jaxtyped(typechecker=beartype)
@@ -115,8 +111,7 @@ class SHAC(LearningAlgorithm):
                 terminal = torch.ones_like(terminal)
 
             safe_action = self.env.safe_action if hasattr(self.env, "safe_action") else None
-            safeguard_metrics  = self.env.safeguard_metrics()  if hasattr(self.env, "safeguard_metrics") else None
-            self.buffer.add(observation, reward, terminal, value, action, safe_action=safe_action, additional_metrics=safeguard_metrics)
+            self.buffer.add(observation, reward, terminal, value, action, safe_action=safe_action)
             t += 1
             average_reward += reward.sum().item()
         return average_reward / self.env.num_envs / self.len_trajectories
@@ -130,7 +125,6 @@ class SHAC(LearningAlgorithm):
         Returns:
             The policy loss
         """
-        
         exponent = torch.arange(self.len_trajectories + 2).view(-1, 1).repeat(1, self.env.num_envs)
 
         for end, env in self.buffer.terminals.nonzero():
@@ -143,14 +137,10 @@ class SHAC(LearningAlgorithm):
         normalisation = self.env.num_envs * self.len_trajectories + self.buffer.terminals.count_nonzero()
 
         policy_loss = -(discount * values).sum() / normalisation
-        
         if self.buffer.store_safe_actions:
-            policy_loss += self.env.regularisation(self.buffer.actions.tensor, 
-                                                   self.buffer.safe_actions.tensor,
-                                                   safeguard_metrics=self.buffer.additional_metrics)
+            policy_loss += self.env.regularisation(self.buffer.actions.tensor, self.buffer.safe_actions.tensor)
 
         policy_loss.backward()
-        
         torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.MAX_GRAD_NORM)
         self.policy_optim.step()
 

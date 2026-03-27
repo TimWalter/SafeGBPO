@@ -23,7 +23,3 @@ class Experiment:
         """
         file_path = Path(__file__).parent.parent / "hyperparameters" / self.env.name / f"{self.learning_algorithm.name.lower()}.py"
         self.learning_algorithm = import_module({"config": file_path}, "config")
-        if hasattr(self.safeguard, "regularisation_coefficient"):
-            self.learning_algorithm.regularisation_coefficient = self.safeguard.regularisation_coefficient
-        else:
-            self.learning_algorithm.regularisation_coefficient = 0.0

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import torch
 
-import src.sets as sets
+import sets
 from envs.interfaces.safe_action_env import SafeActionEnv
 from envs.interfaces.safe_state_env import SafeStateEnv
 

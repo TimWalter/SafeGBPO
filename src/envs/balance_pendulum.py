@@ -62,7 +62,7 @@ class BalancePendulumEnv(PendulumEnv, RCIEnv):
             A batch of observations and info from the vectorized environment.
         """
         super().reset(seed)
-        self.state= self.rci.sample()
+        self.state= self.rci.sample(1)[0]
 
         return self.observation, {}
 

@@ -4,7 +4,7 @@ from typing import Optional
 
 import torch
 import wandb
-import optuna # used to train the hyperparameters
+import optuna
 from pathlib import Path
 import copy
 
@@ -12,8 +12,10 @@ from logger import Logger
 from utils import categorise_run, import_module, gather_custom_modules
 from conf.experiment import Experiment
 
-torch.set_default_device("cuda" if torch.cuda.is_available() else "cpu")
+
+torch.set_default_device("cuda:1" if torch.cuda.is_available() else "cpu")
 torch.set_default_dtype(torch.float64)
+torch.manual_seed(0)
 
 def run_experiment(cfg: Experiment, trial: Optional[optuna.Trial] = None) -> float:
     cfg = copy.deepcopy(cfg)
@@ -21,9 +23,6 @@ def run_experiment(cfg: Experiment, trial: Optional[optuna.Trial] = None) -> flo
         cfg.learning_algorithm.vary(trial, cfg)
 
     group, tags = categorise_run(cfg)
-
-    # ----------------- LOGGER -------------------------
-
     run = wandb.init(project="Leveraging Analytical Gradients in Provably Safe Reinforcement Learning",
                      config=asdict(cfg),
                      monitor_gym=True,
@@ -35,9 +34,6 @@ def run_experiment(cfg: Experiment, trial: Optional[optuna.Trial] = None) -> flo
         run.config.update(trial.params)
 
     run.config["config"] = asdict(cfg)
-
-    # ---------------------------------------------------------
-
 
     modules = gather_custom_modules(Path(__file__).parent / "envs", "Env")
     modules |= gather_custom_modules(Path(__file__).parent / "safeguards", "Safeguard")
@@ -55,15 +51,11 @@ def run_experiment(cfg: Experiment, trial: Optional[optuna.Trial] = None) -> flo
         eval_env = safeguard_class(eval_env, **asdict(cfg.safeguard))
 
     agent = import_module(modules, cfg.learning_algorithm.name)(**vars(cfg.learning_algorithm), env=env)
-    # ----------------- LOGGER -------------------------
-    logger = Logger(agent, env, eval_env, run, trial, cfg.eval_freq, cfg.fast_eval)
-    # ---------------------------------------------------------
 
+    logger = Logger(agent, env, eval_env, run, trial, cfg.eval_freq, cfg.fast_eval)
     agent.learn(interactions=cfg.interactions, logger = logger)
 
-    # ----------------- LOGGER -------------------------
     run.finish()
-    # ---------------------------------------------------------
 
     return logger.best_reward, run.id
 
@@ -76,44 +68,44 @@ if __name__ == "__main__":
     wandb.login(key="")
 
     experiment_queue = [
-        Experiment(num_runs=1,
-                   learning_algorithm=SHACConfig(),
-                   env=NavigateSeekerConfig(),
-                   safeguard=None,
-                   interactions=100_000,
-                   eval_freq=5_000,
-                   fast_eval=False),
+        # Experiment(num_runs=1,
+        #            learning_algorithm=SHACConfig(),
+        #            env=NavigateSeekerConfig(),
+        #            safeguard=None,
+        #            interactions=100_000,
+        #            eval_freq=100_000,
+        #            fast_eval=False),
 
-        Experiment(num_runs=1,
-                   learning_algorithm=SHACConfig(),
-                   env=NavigateSeekerConfig(),
-                   safeguard=BoundaryProjectionConfig(),
-                   interactions=100_000,
-                   eval_freq=5_000,
-                   fast_eval=False),
+        # Experiment(num_runs=1,
+        #            learning_algorithm=SHACConfig(),
+        #            env=NavigateSeekerConfig(),
+        #            safeguard=BoundaryProjectionConfig(),
+        #            interactions=100_000,
+        #            eval_freq=100_000,
+        #            fast_eval=False),
 
-        Experiment(num_runs=1,
-                   learning_algorithm=SHACConfig(),
-                   env=NavigateSeekerConfig(),
-                   safeguard=RayMaskConfig(),
-                   interactions=100_000,
-                   eval_freq=5_000,
-                   fast_eval=False),
+        # Experiment(num_runs=1,
+        #            learning_algorithm=SHACConfig(),
+        #            env=NavigateSeekerConfig(),
+        #            safeguard=RayMaskConfig(),
+        #            interactions=10_000,
+        #            eval_freq=10_000,
+        #            fast_eval=False),
         
-        Experiment(num_runs=1,
-                   learning_algorithm=SHACConfig(),
-                   env=NavigateSeekerConfig(safe_action_polytope=True),
-                   safeguard=FSNetConfig(),
-                   interactions=100_000,
-                   eval_freq=5_000,
-                   fast_eval=False),
+        # Experiment(num_runs=1,
+        #            learning_algorithm=SHACConfig(),
+        #            env=NavigateSeekerConfig(),
+        #            safeguard=FSNetConfig(),
+        #            interactions=100_000,
+        #            eval_freq=100_000,
+        #            fast_eval=True),
 
         Experiment(num_runs=1,
                    learning_algorithm=SHACConfig(),
-                   env=NavigateSeekerConfig(safe_action_polytope=True),
-                   safeguard=PinetConfig(n_iter_admm=100, n_iter_bwd=5, fpi=True),
+                   env=NavigateSeekerConfig(),
+                   safeguard=PinetConfig(),
                    interactions=100_000,
-                   eval_freq=5_000,
+                   eval_freq=100_000,
                    fast_eval=False),
     ]
 

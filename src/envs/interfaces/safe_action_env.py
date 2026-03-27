@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from beartype import beartype
 from jaxtyping import jaxtyped
 
-import src.sets as sets
+import sets
 
 
 class SafeActionEnv(ABC):

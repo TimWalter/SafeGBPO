@@ -9,7 +9,7 @@ from jaxtyping import Float, jaxtyped
 
 from safeguards.interfaces.safeguard import Safeguard, SafeEnv
 from safeguards.boundary_projection import BoundaryProjectionSafeguard
-import src.sets as sets
+import sets
 
 
 @jaxtyped(typechecker=beartype)
@@ -59,7 +59,7 @@ class RayMaskSafeguard(Safeguard):
         self.zonotope_distance_layer = None
         self.boundary_projection_safeguard = None
         self.implicit_zonotope_distance_layer = None
-    
+
     @jaxtyped(typechecker=beartype)
     def safeguard(self, action: Float[Tensor, "{self.batch_dim} {self.action_dim}"]) \
             -> Float[Tensor, "{self.batch_dim} {self.action_dim}"]:
@@ -72,7 +72,6 @@ class RayMaskSafeguard(Safeguard):
         Returns:
             The safeguarded action.
         """
-
         if self.state_constrained:
             safe_center, safe_dist, feasible_dist = self.distance_approximations(action)
         else:
@@ -82,14 +81,12 @@ class RayMaskSafeguard(Safeguard):
         action_dist = torch.linalg.vector_norm(action - safe_center, dim=1, ord=2, keepdim=True)
         directions = (action - safe_center) / (action_dist + 1e-8)
 
-        central = action_dist < 1e-8  
-
+        central = action_dist < 1e-8
         safe_action = torch.where(
             central,
             safe_center,
             safe_center + directions * self.radial_mapping(action_dist, safe_dist, feasible_dist)
         )
-
         return safe_action
 
     @jaxtyped(typechecker=beartype)
@@ -175,12 +172,13 @@ class RayMaskSafeguard(Safeguard):
                 next_state_action_generator = self.action_mat[0].cpu().numpy() @ generator
                 next_state_generator = cp.hstack([next_state_action_generator,
                                                   next_state_noise_generator])
-                constraints += sets.Zonotope.zonotope_containment_constraints(
-                    next_state_center,
-                    next_state_generator,
-                    safe_state_center,
-                    safe_state_generator
-                )
+                weights = cp.Variable(self.safe_action_gens)
+                mapping = cp.Variable((self.safe_action_gens, self.action_dim * 2))
+                constraints += [
+                    next_state_generator == safe_state_generator @ mapping,
+                    safe_state_center - next_state_center == safe_state_generator @ weights,
+                    cp.norm(cp.hstack([mapping, cp.reshape(weights, (-1, 1), "C")]), "inf") <= 1
+                ]
 
             problem = cp.Problem(objective, constraints)
             self.zonotope_expansion_layer = CvxpyLayer(problem, parameters=parameters, variables=[center, length])
@@ -228,11 +226,12 @@ class RayMaskSafeguard(Safeguard):
             objective = cp.Maximize(dist)
 
             zonotope_boundary = cp_center + cp.multiply(dist, directions)
-            constraints = sets.Zonotope.point_containment_constraints(
-                zonotope_boundary,
-                cp_center,
-                cp_generator
-            )
+
+            weights = cp.Variable(cp_generator.shape[1])
+            constraints = [
+                zonotope_boundary == cp_center + cp_generator @ weights,
+                cp.norm(weights, "inf") <= 1
+            ]
 
             problem = cp.Problem(objective, constraints)
             self.zonotope_distance_layer = CvxpyLayer(problem, parameters=parameters, variables=[dist])
@@ -311,12 +310,13 @@ class RayMaskSafeguard(Safeguard):
 
                 next_state_generator = noise_mat @ noise_generator
 
-                constraint = sets.Zonotope.zonotope_containment_constraints(
-                    next_state_center,
-                    next_state_generator,
-                    safe_state_center,
-                    safe_state_generator
-                )
+                weights = cp.Variable(self.safe_action_gens)
+                mapping = cp.Variable((self.safe_action_gens, self.action_dim * 2))
+                constraints += [
+                    next_state_generator == safe_state_generator @ mapping,
+                    safe_state_center - next_state_center == safe_state_generator @ weights,
+                    cp.norm(cp.hstack([mapping, cp.reshape(weights, (-1, 1), "C")]), "inf") <= 1
+                ]
 
                 constraints += constraint
                 parameters += [safe_state_center, safe_state_generator, constant_mat, action_mat,

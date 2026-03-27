@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 import os
 import ast
 import sys
@@ -7,8 +7,10 @@ import importlib
 import importlib.util
 from pathlib import Path
 
+import torch
+from torch import Tensor
 from beartype import beartype
-from jaxtyping import jaxtyped
+from jaxtyping import jaxtyped, Float
 
 from conf.safeguard import RayMaskConfig
 
@@ -239,3 +241,74 @@ def gather_custom_modules(directory: Path, subclass: str | None = None) -> dict[
                 else:
                     modules[node.name] = module_name
     return modules
+
+
+#@torch.compile
+def lbfgs(x_init: Float[Tensor, "batch_dim dim"],
+          loss_fn: Callable[[Float[Tensor, "batch_dim dim"]], Float[Tensor, "batch_dim"]],
+          n_steps: int,
+          history_size: int = 10
+          ) -> Float[Tensor, "batch_dim dim"]:
+    """
+    Differentiable L-BFGS solver.
+
+    Args:
+        x_init: Batched Initial state.
+        loss_fn: Loss function.
+        n_steps: Number of iterations to perform.
+        history_size: How many updates to track for Hessian approximation.
+    """
+    s = []
+    y = []
+    rho = []
+
+    with torch.enable_grad():
+        x = x_init.clone().requires_grad_(True)
+        loss = loss_fn(x)
+        grad = torch.autograd.grad(loss.sum(), x, create_graph=x_init.requires_grad)[0]
+
+    for i in range(n_steps):
+        # 1. Compute Search Direction
+        if i == 0:
+            d = -0.1 * grad
+        else:
+            # Two-loop recursion
+            alpha = []
+            q = grad.clone()
+            for j in reversed(range(len(s))):
+                alpha += [rho[j] * (s[j] * q).sum(dim=1, keepdim=True)]
+                q = q - alpha[-1] * y[j]
+
+            gamma = ((s[-1] * y[-1]).sum(dim=-1, keepdim=True) /
+                     ((y[-1] ** 2).sum(dim=-1, keepdim=True) + 1e-6))
+            r = q * gamma
+            alpha = alpha[::-1]
+            for j in range(len(s)):
+                beta = rho[j] * (y[j] * r).sum(dim=1, keepdim=True)
+                r = r + s[j] * (alpha[j] - beta)
+            d = -r
+
+        # 2. Backtracking Line Search
+        dir_deriv = (grad * d).sum(dim=1, keepdim=True)
+        lr = torch.ones((x.shape[0], 1), device=x_init.device)
+        for _ in range(5):
+            mask = (loss_fn(x + lr * d) > loss + 1e-4 * lr.squeeze() * dir_deriv.squeeze())
+            lr = torch.where(mask.unsqueeze(1), lr * 0.5, lr)
+
+        # 3. Step and Update History
+        with torch.enable_grad():
+            x_next = (x + lr * d).requires_grad_(True)
+            loss = loss_fn(x_next)
+            grad_next = torch.autograd.grad(loss.sum(), x_next, create_graph=x_init.requires_grad)[0]
+
+        s += [x_next - x]
+        y += [grad_next - grad]
+        rho += [1.0 / ((s[-1] * y[-1]).sum(dim=1, keepdim=True) + 1e-6)]
+        if len(s) > history_size:
+            s.pop(0)
+            y.pop(0)
+            rho.pop(0)
+
+        x, grad = x_next, grad_next
+
+    return x

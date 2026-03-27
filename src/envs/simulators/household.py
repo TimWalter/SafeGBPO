@@ -7,7 +7,7 @@ from PIL import Image
 from jaxtyping import jaxtyped, Float, Bool
 from torchvision.transforms.functional import to_tensor
 
-import src.sets as sets
+import sets
 from envs.simulators.interfaces.simulator import Simulator
 
 
@@ -172,7 +172,7 @@ class HouseholdEnv(Simulator):
         Args:
             action: Action to execute in the environment.
         """
-        noise = self.noise_set.sample()
+        noise = self.noise_set.sample(1)[0]
         noise[:, 1] = self.T_OUT_DATA[:, self.steps]
         self.state = self.dynamics(self.state, action, noise)
 

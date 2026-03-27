@@ -1,6 +1,6 @@
 import torch
 
-from src.sets.box import Box
+from sets.box import Box
 from envs.simulators.pendulum import PendulumEnv
 from envs.simulators.household import HouseholdEnv
 
@@ -25,7 +25,7 @@ def linearisation_test(env_class, **kwargs):
     env.step(action)
     next_state = env.state
 
-    assert next_state_box.contains(next_state).all() or torch.allclose(
+    assert next_state_box.contains(next_state.unsqueeze(0)).all() or torch.allclose(
         lin_next_state, next_state, rtol=0.01)
 
 

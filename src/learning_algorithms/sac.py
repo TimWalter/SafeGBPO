@@ -30,7 +30,6 @@ class SAC(LearningAlgorithm):
                  policy_optim_kwargs: dict,
                  vf_kwargs: dict,
                  vf_optim_kwargs: dict,
-                 regularisation_coefficient: float,
                  buffer_size: int,
                  polyak_target: float,
                  learning_starts: int,
@@ -46,15 +45,13 @@ class SAC(LearningAlgorithm):
             policy_optim_kwargs: The keyword arguments for the policy optimizer.
             vf_kwargs: The keyword arguments for the value function network.
             vf_optim_kwargs: The keyword arguments for the value function optimizer.
-            regularisation_coefficient: Regularisation coefficient for the regularisation towards safe actions.
             buffer_size: The maximal size of the buffer.
             polyak_target: The soft update coefficient for the target function.
             learning_starts: The number of episodes to collect before training.
             policy_frequency: The frequency and number of policy updates.
             target_frequency: The frequency to update the target value function.
         """
-        super().__init__(env, policy_kwargs, policy_optim_kwargs, vf_kwargs, vf_optim_kwargs,
-                         regularisation_coefficient, True)
+        super().__init__(env, policy_kwargs, policy_optim_kwargs, vf_kwargs, vf_optim_kwargs, True)
         self.buffer = CoupledBuffer(buffer_size, self.env.num_envs, self.env.obs_dim, False,
                                     self.env.action_dim, batch_size=self.BATCH_SIZE,
                                     store_safe_actions=hasattr(self.env, "safe_action"))
@@ -104,7 +101,6 @@ class SAC(LearningAlgorithm):
             if eps % self.target_frequency == 0:
                 self.update_target()
 
-        self._last_episode_additional_metrics = self.buffer.aggregate_additional_metrics()
         return average_reward, policy_loss, value_loss
 
     @jaxtyped(typechecker=beartype)
@@ -119,7 +115,7 @@ class SAC(LearningAlgorithm):
             float: The average reward collected during the episode.
         """
         if eps < self.learning_starts:
-            action = self.env.action_set.sample()
+            action = self.env.action_set.sample(1)[0]
         else:
             with torch.no_grad():
                 action = self.policy(self.buffer.observations[self.buffer.t])
@@ -128,8 +124,7 @@ class SAC(LearningAlgorithm):
         terminal = terminated | truncated
 
         safe_action = self.env.safe_action if hasattr(self.env, "safe_action") else None
-        safeguard_metrics  = self.env.safeguard_metrics()  if hasattr(self.env, "safeguard_metrics") else None
-        self.buffer.add(observation, reward, terminal, action=action, safe_action=safe_action, additional_metrics=safeguard_metrics)
+        self.buffer.add(observation, reward, terminal, action=action, safe_action=safe_action)
 
         return reward.mean().item()
 
@@ -187,11 +182,8 @@ class SAC(LearningAlgorithm):
         min_value = torch.min(value1, value2)
 
         policy_loss = (self.alpha * log_probs - min_value).mean()
-        
         if self.buffer.store_safe_actions:
-            policy_loss += self.env.regularisation(self.buffer.actions.tensor, 
-                                                   self.buffer.safe_actions.tensor,
-                                                   safeguard_metrics= self.buffer.additional_metrics)
+            policy_loss += self.env.regularisation(self.buffer.actions.tensor, self.buffer.safe_actions.tensor)
         self.policy_optim.zero_grad()
         policy_loss.backward()
         self.policy_optim.step()

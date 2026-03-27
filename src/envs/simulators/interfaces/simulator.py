@@ -7,13 +7,15 @@ from beartype import beartype
 from gymnasium.vector import VectorEnv
 from jaxtyping import Float, Bool, jaxtyped
 
-import src.sets as sets
+import sets
+
 
 class Simulator(ABC, VectorEnv):
     """
     Base class for vectorized torch environments.
     """
     EVAL_ENVS: int = 1
+    action_set: sets.AxisAlignedBox
 
     @jaxtyped(typechecker=beartype)
     def __init__(
@@ -69,7 +71,7 @@ class Simulator(ABC, VectorEnv):
         if seed is not None:
             torch.manual_seed(seed)
 
-        self.state = self.state_set.sample()
+        self.state = self.state_set.sample(1)[0]
 
         self.steps = 0
 
@@ -177,8 +179,8 @@ class Simulator(ABC, VectorEnv):
         Args:
             action: Action to execute in the environment.
         """
-        self.state = self.dynamics(self.state, action, self.noise_set.sample())
-        self.state = torch.clamp(self.state, self.state_set.min, self.state_set.max)
+        self.state = self.dynamics(self.state, action, self.noise_set.sample(1)[0])
+        self.state = torch.clamp(self.state, *self.state_set.bounds())
 
     @abstractmethod
     @jaxtyped(typechecker=beartype)

@@ -2,7 +2,7 @@ import sets
 import torch
 import matplotlib.pyplot as plt
 from scipy.spatial import ConvexHull
-import numpy as np
+
 
 def sample_zonotope(center, G, n=1000):
     """
@@ -57,7 +57,7 @@ def test_polytope_matches_zonotope(env):
     env.polytope = False
     env.shape = sets.Zonotope
     Z = env.safe_action_set()
-    center = Z.center 
+    center = Z.center
     G = Z.generator 
 
     # ---- Compute polytope version ----

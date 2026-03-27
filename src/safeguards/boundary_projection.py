@@ -3,8 +3,6 @@ from torch import Tensor
 from beartype import beartype
 from cvxpylayers.torch import CvxpyLayer
 from jaxtyping import Float, jaxtyped
-import torch
-import scipy.sparse as sp
 
 from safeguards.interfaces.safeguard import Safeguard, SafeEnv
 
@@ -15,10 +13,9 @@ class BoundaryProjectionSafeguard(Safeguard):
     """
 
     @jaxtyped(typechecker=beartype)
-    def __init__(self, env: SafeEnv,
-                 regularisation_coefficient: float,
-                **kwargs):
+    def __init__(self, env: SafeEnv, regularisation_coefficient: float, **kwargs):
         Safeguard.__init__(self, env, regularisation_coefficient)
+
         self.boundary_layer = None
 
     @jaxtyped(typechecker=beartype)
@@ -33,7 +30,6 @@ class BoundaryProjectionSafeguard(Safeguard):
         Returns:
             The safeguarded action.
         """
-     
         if self.boundary_layer is None:
             cp_action = cp.Parameter(self.action_dim)
             parameters = [cp_action]
@@ -59,4 +55,3 @@ class BoundaryProjectionSafeguard(Safeguard):
         safe_action = self.boundary_layer(*parameters, solver_args=self.solver_args)[0]
 
         return safe_action
-

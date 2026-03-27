@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw
 from jaxtyping import jaxtyped, Float, Bool
 from torchvision.transforms.functional import to_tensor
 
-import src.sets as sets
+import sets as sets
 from envs.simulators.interfaces.simulator import Simulator
 
 
@@ -246,12 +246,12 @@ class SeekerEnv(Simulator):
 
         draw.ellipse(
             (screen_goal_x - radius, screen_goal_y - radius, screen_goal_x + radius, screen_goal_y + radius),
-            fill=(0, 255, 0)
+            fill=(0, 255, 0), outline="black"
         )
 
         draw.ellipse(
             (screen_agent_x - radius, screen_agent_y - radius, screen_agent_x + radius, screen_agent_y + radius),
-            fill=(255, 0, 0)
+            fill=(255, 0, 0), outline="black"
         )
 
         return img, draw
